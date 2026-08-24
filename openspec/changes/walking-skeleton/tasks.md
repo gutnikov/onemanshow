@@ -6,13 +6,13 @@ All tasks are performed in this repository or in an external service, except gro
 - [ ] 1.2 Exclude our own openspec change history from what the template ships, keeping the configuration and directory structure; verify a project created from the template carries openspec config and no inherited changes
 - [ ] 1.3 Confirm no real credential exists anywhere in this repository's history, only example files and placeholder recipients; verify by scanning the full history rather than the working tree
 - [ ] 1.4 Wire the skill from a local path for our own iteration instead of relying on the copied files; verify that editing a playbook takes effect without recreating the testbed
-- [ ] 1.5 Create the private testbed project through "Use this template" rather than by cloning, so the copy path is itself exercised; verify the resulting project builds before any change is made to it
+- [x] 1.5 Create the private testbed project through "Use this template" rather than by cloning, so the copy path is itself exercised; verify the resulting project builds before any change is made to it
 
 ## 2. Secrets foundation
 
-- [ ] 2.1 Generate two age identities, one for staging and one for production; verify each private key decrypts only its own environment's file and fails on the other
+- [x] 2.1 Generate two age identities, one for staging and one for production; verify each private key decrypts only its own environment's file and fails on the other
 - [x] 2.2 Add `.sops.yaml` with path rules binding each environment's file to its recipient; verify an encrypted test file shows only ciphertext in `git show`
-- [ ] 2.3 Add the age private keys as Actions secrets; verify a throwaway workflow decrypts the staging file and prints a known value
+- [x] 2.3 Add the age private keys as Actions secrets; verify a throwaway workflow decrypts the staging file and prints a known value
 - [x] 2.4 Document that these keys are the only secrets outside the repository; verify by grepping the template for any other plaintext credential and finding none
 
 ## 3. Registry
