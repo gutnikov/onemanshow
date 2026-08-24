@@ -38,15 +38,34 @@ Before validating a change, the pipeline SHALL rebuild the staging data plane fr
 - **THEN** `ship/migrate` at the change's commit runs against the production schema, so the migration path itself is executed before it can reach production
 
 ### Requirement: Reset precedes every use of staging
-The pipeline SHALL reset staging before each automated verification attempt and again before handing the environment to a human, so that neither ever observes the residue of a previous run.
+The pipeline SHALL reset staging before each automated verification attempt and again before handing the environment to a human, so that neither ever observes the residue of a previous run. Since validation comprises two runs with different data, staging is reset three times in a normal pass: for the baseline, between the two runs, and for the handover.
 
 #### Scenario: A verification attempt is retried
 - **WHEN** `ship/e2e` failed and is attempted again on the same commit
 - **THEN** staging is reset before the retry, so the retry does not run against the wreckage of the failed attempt
 
+#### Scenario: Between the two verification runs
+- **WHEN** the migration-safety run has finished and the end-to-end suite is about to start
+- **THEN** staging is reset and seeded at the change's own commit, so the suite sees the fixtures it was written against rather than production's data
+
 #### Scenario: Handover to a human
 - **WHEN** automated verification has passed and the change is handed over for review
 - **THEN** staging has been reset and seeded, so the reviewer sees predictable synthetic data rather than the by-products of the test run
+
+### Requirement: Migration safety and feature correctness are verified separately
+Validating a change on staging SHALL answer two questions in two runs, because one run cannot answer both. Against the baseline derived from production — production's schema and production's data with the change's migration applied on top — the pipeline SHALL run only the content-agnostic smoke set, because the data present is deliberately not the data the change's fixtures describe. It SHALL then reset, seed at the change's own commit, and run the full end-to-end suite.
+
+#### Scenario: A change alters the seed fixtures
+- **WHEN** a change modifies the synthetic fixture data and is validated on staging
+- **THEN** the migration-safety run uses the smoke set and passes even though the data present differs from the change's fixtures, and the end-to-end suite afterwards runs against data seeded at the change's own commit
+
+#### Scenario: A migration breaks the application against existing data
+- **WHEN** the change's migration is applied to production's data and the application can no longer serve its pages
+- **THEN** the smoke set fails during the migration-safety run, before the end-to-end suite is reached
+
+#### Scenario: A feature is wrong while its migration is safe
+- **WHEN** the migration applies cleanly but the change's behaviour is wrong
+- **THEN** the migration-safety run passes and the end-to-end suite fails
 
 ### Requirement: Reset must not be able to reach production
 The reset operation SHALL act only on a target whose identity marks it as the staging data plane, and SHALL refuse to act on any other target. Staging and production SHALL NOT share a database instance, so that resetting is the destruction of a separate volume rather than a command issued against a server that also serves production.

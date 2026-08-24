@@ -77,6 +77,12 @@ Preparation destroys the staging volume, starts an empty database, then migrates
 
 *Trade-off:* migrating from empty grows with project age. Acceptable for a young project; when it becomes slow the remedies are squashing migrations or caching a dump keyed by commit.
 
+**Corrected after the first trial run.** Deriving the baseline from production also brings production's *data*, while the end-to-end fixtures belong to the change's commit — so any change touching the fixtures failed validation through no fault of its own. Observed directly on the local rig: with staging holding `the skeleton walks` and the change expecting `the skeleton walks on stage`, both content-asserting tests failed while both smoke tests passed.
+
+One run cannot answer both questions, so validation is two runs: the **content-agnostic smoke set** against the migrated production baseline, proving the migration did not break the application against real-shaped data, and then a reset and seed at the change's own commit before the **full end-to-end suite**, proving the feature.
+
+What makes this cheap is that the tool already existed. The smoke set was made content-agnostic for production, where the data is real and nothing can be asserted about it — and that is exactly the property required here. The design element pays off a second time in a place it was not designed for. It is also evidence for building the skeleton before the playbooks: this would otherwise have been discovered by the first real schema change, on a paid machine, and debugged as a CI fault rather than fixed as a one-paragraph spec error.
+
 ### Staging and production share one VPS
 
 Chosen for operational simplicity — one deployment target, one proxy, one firewall, one machine to patch — and because conveyor exclusivity means the two are never busy simultaneously: end-to-end validation and the post-release observation period are different stages. One adequately sized machine costs about what two small ones do, so this is not primarily a cost decision.
