@@ -14,3 +14,6 @@ playwright-report/
 *.agekey
 *.dec
 *.dec.yaml
+
+# Kamal keeps local state here.
+.kamal/

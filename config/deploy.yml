@@ -1,0 +1,54 @@
+# Kamal, base configuration shared by both destinations.
+#
+# No instance data lives here. Hosts, image and domains come from the
+# environment through ERB, because this file ships in a template: a real IP
+# committed here would point every project created from it at somebody else's
+# machine. Values arrive from secrets/ locally and from Actions in CI.
+service: onemanshow
+image: <%= ENV.fetch("SHIP_IMAGE") %>
+
+servers:
+  web:
+    - <%= ENV.fetch("SHIP_HOST") %>
+
+proxy:
+  ssl: true
+  host: <%= ENV.fetch("SHIP_DOMAIN") %>
+  app_port: 3000
+  healthcheck:
+    path: /health
+
+registry:
+  server: <%= ENV.fetch("SHIP_REGISTRY_SERVER", "docker.io") %>
+  username: <%= ENV.fetch("SHIP_REGISTRY_USER") %>
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+# Images are built in CI and only ever promoted here. Building on this machine
+# would execute dependency install scripts next to production secrets.
+builder:
+  arch: amd64
+
+env:
+  clear:
+    PORT: 3000
+  secret:
+    - DATABASE_URL
+
+accessories:
+  db:
+    image: postgres:17-alpine
+    host: <%= ENV.fetch("SHIP_HOST") %>
+    # Bound to loopback deliberately. A published container port bypasses ufw
+    # entirely - Docker writes its own iptables rules - so "5432:5432" here
+    # would put the database on the public internet while the firewall reported
+    # deny incoming. CI reaches it through an ssh tunnel instead.
+    port: "127.0.0.1:<%= ENV.fetch('SHIP_DB_PORT', '5432') %>:5432"
+    env:
+      clear:
+        POSTGRES_USER: onemanshow
+        POSTGRES_DB: onemanshow
+      secret:
+        - POSTGRES_PASSWORD
+    directories:
+      - data:/var/lib/postgresql/data

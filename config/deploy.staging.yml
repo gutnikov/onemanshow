@@ -1,0 +1,21 @@
+# Staging destination. A distinct service name is what gives it its own
+# containers and its own named volume, so resetting one cannot touch the other -
+# and it puts "staging" in those names, which the reset guard requires.
+service: onemanshow-staging
+
+proxy:
+  host: <%= ENV.fetch("SHIP_STAGING_DOMAIN") %>
+
+# Hard limits on staging only. Production is left unconstrained: on a shared
+# machine the point is that validation cannot starve what users are using.
+servers:
+  web:
+    hosts:
+      - <%= ENV.fetch("SHIP_HOST") %>
+    options:
+      cpus: 1
+      memory: 512m
+
+accessories:
+  db:
+    port: "127.0.0.1:<%= ENV.fetch('SHIP_STAGING_DB_PORT', '5433') %>:5432"
