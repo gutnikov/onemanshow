@@ -1,0 +1,39 @@
+#!/bin/sh
+# Destroys the staging data plane and starts an empty database in its place.
+#
+# The guard is the whole reason this is a script. On a machine that hosts both
+# environments the likeliest incident is not load but an operation pointed at
+# the wrong target, so the destructive command refuses anything whose name does
+# not identify it as staging. It is a refusal, not a warning: a warning relies
+# on somebody reading it.
+set -eu
+
+VOLUME="${1:?usage: reset-staging <volume> [container]}"
+CONTAINER="${2:-onemanshow-staging-db}"
+PATTERN='staging'
+
+case "$VOLUME" in
+  *"$PATTERN"*) ;;
+  *)
+    printf 'refusing: %s does not identify a staging target\n' "$VOLUME" >&2
+    exit 1
+    ;;
+esac
+
+case "$CONTAINER" in
+  *"$PATTERN"*) ;;
+  *)
+    printf 'refusing: %s does not identify a staging target\n' "$CONTAINER" >&2
+    exit 1
+    ;;
+esac
+
+if [ "${SHIP_RESET_DRY_RUN:-}" = "1" ]; then
+  printf 'would destroy volume %s and container %s\n' "$VOLUME" "$CONTAINER"
+  exit 0
+fi
+
+docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+docker volume rm "$VOLUME" >/dev/null 2>&1 || true
+docker volume create "$VOLUME" >/dev/null
+printf 'destroyed and recreated %s\n' "$VOLUME"

@@ -1,0 +1,56 @@
+#!/bin/sh
+# Runs one application hook, or applies its documented degradation when the hook
+# is absent. This lives in a script rather than inline in a workflow because a
+# workflow cannot be tested without running CI, and degradation is behaviour we
+# have to be able to verify.
+#
+# Usage: .github/scripts/hook <check|build|migrate|seed|e2e|smoke>
+set -eu
+
+NAME="${1:?usage: hook <name>}"
+HOOK="ship/${NAME}"
+
+note() {
+  printf '%s\n' "$*" >&2
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then printf '%s\n' "$*" >> "$GITHUB_STEP_SUMMARY"; fi
+}
+
+degraded() {
+  note "degraded: no ${HOOK} - $1"
+  if [ -n "${GITHUB_OUTPUT:-}" ]; then printf 'degraded=true\n' >> "$GITHUB_OUTPUT"; fi
+}
+
+# A hook that exists but cannot be run is a mistake, not an absence. Treating it
+# as absent would silently reduce capability while looking healthy.
+if [ -f "$HOOK" ] && [ ! -x "$HOOK" ]; then
+  note "error: ${HOOK} exists but is not executable"
+  exit 1
+fi
+
+if [ -x "$HOOK" ]; then
+  exec "$HOOK"
+fi
+
+case "$NAME" in
+  check)
+    degraded "stage skipped"
+    ;;
+  build)
+    degraded "building from the Dockerfile at the repository root"
+    docker build -t "${SHIP_IMAGE:?}:${SHIP_SHA:?}" .
+    ;;
+  migrate | seed)
+    degraded "the project has no database, so there is nothing to ${NAME}"
+    ;;
+  e2e)
+    degraded "staging validation is human-only: no automated check ran"
+    ;;
+  smoke)
+    degraded "falling back to GET / expecting 2xx"
+    curl -fsS -o /dev/null "${SHIP_URL:?}/"
+    ;;
+  *)
+    note "error: unknown hook ${NAME}"
+    exit 1
+    ;;
+esac

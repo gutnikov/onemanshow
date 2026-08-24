@@ -1,0 +1,7 @@
+name: on pull request
+on: { pull_request: { branches: [main] } }
+jobs:
+  pr:
+    uses: gutnikov/onemanshow/.github/workflows/pr.yml@main
+    with: { image: docker.io/REPLACE_ME/onemanshow-reference }
+    secrets: inherit

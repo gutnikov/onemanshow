@@ -1,0 +1,7 @@
+name: rollback
+on: { workflow_dispatch: }
+jobs:
+  rollback:
+    uses: gutnikov/onemanshow/.github/workflows/rollback.yml@main
+    with: { url: https://REPLACE_ME }
+    secrets: inherit

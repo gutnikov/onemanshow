@@ -50,7 +50,7 @@ All tasks are performed in this repository or in an external service, except gro
 - [ ] 6.3 Add hard CPU, memory and log-size limits to the staging containers only; verify the limits are in effect under `docker stats` while an end-to-end run is in progress
 - [ ] 6.4 Configure the proxy to route the production, staging and automation host names with certificates; verify all three resolve over TLS and that each reaches only its own environment
 - [ ] 6.5 Implement the no-domain path using host names derived from the machine's IP through a wildcard DNS service rather than a bare IP; verify staging and production remain separately addressable over TLS with no domain registered
-- [ ] 6.6 Add the staging reset routine with a guard refusing any target whose identity does not match staging; verify it destroys the staging volume and, when pointed at the production volume, refuses and performs no action
+- [x] 6.6 Add the staging reset routine with a guard refusing any target whose identity does not match staging; verify it destroys the staging volume and, when pointed at the production volume, refuses and performs no action
 
 ## 7. Pipeline
 
@@ -59,8 +59,8 @@ All tasks are performed in this repository or in an external service, except gro
 - [ ] 7.3 Add the reusable release workflow: promote the validated image without rebuilding, mark the release in error tracking, deploy, then run `ship/smoke`; verify the deployed image digest equals the digest validated on staging
 - [ ] 7.4 Add the reusable rollback workflow returning production one step and refusing to step further; verify that a rollback whose target also fails smoke stops and reports instead of continuing, and that a rollback of a rollback is refused
 - [ ] 7.5 Add workflow stubs delegating to this repository's reusable workflows at `@main`; verify each stub is under ten lines and that changing a workflow here alters the testbed's behaviour with no edit in the testbed
-- [ ] 7.6 Verify the documented degradation for every hook by temporarily removing it one at a time and confirming the pipeline reduces capability as specified rather than failing (moved here from group 5: degradation is a property of the pipeline, so it cannot be checked before one exists)
-- [ ] 7.7 Verify no floating tags exist anywhere in the pipeline by grepping the workflows for `latest`, `staging` and `prod` as image tags and finding none
+- [x] 7.6 Verify the documented degradation for every hook by temporarily removing it one at a time and confirming the pipeline reduces capability as specified rather than failing (moved here from group 5: degradation is a property of the pipeline, so it cannot be checked before one exists)
+- [x] 7.7 Verify no floating tags exist anywhere in the pipeline by grepping the workflows for `latest`, `staging` and `prod` as image tags and finding none
 
 ## 8. Observability
 

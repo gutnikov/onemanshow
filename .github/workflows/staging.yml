@@ -1,0 +1,92 @@
+# Staging validation.
+#
+# The baseline is derived from the commit production is running, not from a
+# stored dump: a worktree at that commit migrates and seeds an empty database,
+# and only then is the change's image deployed and its own migration applied.
+# That is what makes the migration path itself execute before it can reach
+# production.
+#
+# The database is reached through an SSH tunnel so that the application hooks
+# stay the interface. Running migrations inside the container instead would need
+# a toolchain in the runtime image, which is exactly the weight the image avoids.
+name: staging
+
+on:
+  workflow_call:
+    inputs:
+      image: { required: true, type: string }
+      sha: { description: Commit under review, required: true, type: string }
+      url: { description: Address of the staging environment, required: true, type: string }
+      staging_volume: { required: true, type: string }
+    secrets:
+      registry_user: { required: true }
+      registry_token: { required: true }
+      age_key: { required: true }
+      ssh_key: { required: true }
+      host: { required: true }
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      KAMAL_REGISTRY_PASSWORD: ${{ secrets.registry_token }}
+      SOPS_AGE_KEY: ${{ secrets.age_key }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - run: gem install kamal -v 2.5.3 --no-document
+
+      - name: authorise ssh
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s' "${{ secrets.ssh_key }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.host }}" >> ~/.ssh/known_hosts
+
+      - name: read the commit production is running
+        id: prod
+        run: echo "sha=$(kamal app version -d production | tail -1)" >> "$GITHUB_OUTPUT"
+
+      - name: destroy the staging data plane
+        run: |
+          ssh "root@${{ secrets.host }}" \
+            "bash -s" < .github/scripts/reset-staging "${{ inputs.staging_volume }}"
+          kamal accessory boot db-staging
+
+      - name: open a tunnel to the staging database
+        run: |
+          ssh -f -N -L 15432:localhost:5432 "root@${{ secrets.host }}"
+          echo "DATABASE_URL=$(sops -d secrets/staging.yaml | yq -r .DATABASE_URL_TUNNEL)" >> "$GITHUB_ENV"
+
+      # The baseline: production's schema and synthetic data, produced by the
+      # code at production's commit rather than by the code under review.
+      - name: migrate and seed at production's commit
+        run: |
+          git worktree add /tmp/baseline "${{ steps.prod.outputs.sha }}"
+          cd /tmp/baseline && npm ci --no-audit --no-fund
+          .github/scripts/hook migrate
+          .github/scripts/hook seed
+
+      - name: deploy the change under review
+        run: kamal deploy -d staging --version "${{ inputs.sha }}"
+
+      # The migration actually under test, applied to production's schema.
+      - name: migrate at the commit under review
+        run: .github/scripts/hook migrate
+
+      - name: end-to-end
+        env: { SHIP_URL: "${{ inputs.url }}" }
+        run: .github/scripts/hook e2e
+
+      # Reset again before a human looks: synthetic data is valuable because it
+      # is predictable, which it stops being on top of a test run's residue.
+      - name: reset for handover
+        run: |
+          ssh "root@${{ secrets.host }}" \
+            "bash -s" < .github/scripts/reset-staging "${{ inputs.staging_volume }}"
+          kamal accessory boot db-staging
+          .github/scripts/hook migrate
+          .github/scripts/hook seed

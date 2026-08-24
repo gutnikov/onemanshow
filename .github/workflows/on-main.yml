@@ -1,0 +1,10 @@
+name: on main
+on: { push: { branches: [main] } }
+jobs:
+  release:
+    uses: gutnikov/onemanshow/.github/workflows/release.yml@main
+    with:
+      image: docker.io/REPLACE_ME/onemanshow-reference
+      sha: ${{ github.sha }}
+      url: https://REPLACE_ME
+    secrets: inherit

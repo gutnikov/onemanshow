@@ -1,0 +1,78 @@
+# Production release by promotion.
+#
+# The image is pulled, never rebuilt. Builds are not bit-reproducible, so a
+# rebuilt image is not the artifact that passed validation and the invariant
+# would be quietly false rather than loudly broken.
+name: release
+
+on:
+  workflow_call:
+    inputs:
+      image: { required: true, type: string }
+      sha: { required: true, type: string }
+      url: { description: Address of production, required: true, type: string }
+    secrets:
+      registry_user: { required: true }
+      registry_token: { required: true }
+      age_key: { required: true }
+      ssh_key: { required: true }
+      host: { required: true }
+      sentry_token: { required: false }
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      KAMAL_REGISTRY_PASSWORD: ${{ secrets.registry_token }}
+      SOPS_AGE_KEY: ${{ secrets.age_key }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - run: gem install kamal -v 2.5.3 --no-document
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.registry_user }}
+          password: ${{ secrets.registry_token }}
+
+      - name: authorise ssh
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s' "${{ secrets.ssh_key }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.host }}" >> ~/.ssh/known_hosts
+
+      # Fail rather than rebuild. Recovering by rebuilding would produce an
+      # artifact nobody verified.
+      - name: promote the validated artifact
+        run: |
+          docker pull "${{ inputs.image }}:${{ inputs.sha }}"
+          echo "digest=$(docker image inspect --format '{{index .RepoDigests 0}}' \
+            "${{ inputs.image }}:${{ inputs.sha }}")"
+
+      # Tagging the release with the commit is what lets the observation window
+      # ask "are there new issues in this release?" - a question that stays
+      # meaningful at the traffic volume an indie product actually has.
+      - name: mark the release
+        if: ${{ secrets.sentry_token != '' }}
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.sentry_token }}
+        run: npx @sentry/cli releases new "${{ inputs.sha }}"
+
+      - name: migrate production
+        run: .github/scripts/hook migrate
+
+      - name: deploy
+        run: kamal deploy -d production --version "${{ inputs.sha }}"
+
+      - name: smoke
+        env: { SHIP_URL: "${{ inputs.url }}" }
+        run: .github/scripts/hook smoke
+
+      - name: mark the deploy
+        if: ${{ success() && secrets.sentry_token != '' }}
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.sentry_token }}
+        run: npx @sentry/cli releases deploys "${{ inputs.sha }}" new -e production
