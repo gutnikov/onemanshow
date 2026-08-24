@@ -45,7 +45,7 @@ All tasks are performed in this repository or in an external service, except gro
 
 ## 6. The machine
 
-- [ ] 6.1 Provision the VPS with a container runtime, a firewall and swap, from a script committed to the repository; verify the firewall exposes only 22, 80 and 443, and that the script is safe to run a second time
+- [x] 6.1 Provision the VPS with a container runtime, a firewall and swap, from a script committed to the repository; verify the firewall exposes only 22, 80 and 443, and that the script is safe to run a second time
 - [ ] 6.2 Add deployment configuration with separate staging and production destinations, each with its own database container and named volume; verify the two volumes are distinct and neither environment can reach the other's database
 - [x] 6.3 Add hard CPU, memory and log-size limits to the staging containers only; verify the limits are in effect under `docker stats` while an end-to-end run is in progress
 - [ ] 6.4 Configure the proxy to route the production, staging and automation host names with certificates; verify all three resolve over TLS and that each reaches only its own environment
