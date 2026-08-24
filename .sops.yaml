@@ -1,0 +1,20 @@
+# Secrets live encrypted in the repository. Exactly one thing lives outside it:
+# the private age key. That sentence is the whole trust boundary.
+#
+# The recipients below are PLACEHOLDERS. Replace them with your own public keys
+# before encrypting anything. If you leave them, your secrets are encrypted to
+# somebody else's key and they, not you, can read them.
+#
+#   age-keygen -o staging.agekey    # public key is printed and in the file
+#   age-keygen -o prod.agekey
+#
+# Two identities rather than one so that a leaked key exposes one environment
+# rather than both, and so a staging configuration can never hold a production
+# value. Both private keys are held by CI, because CI deploys to both, and by
+# the machine, because it runs both - but each stack only ever decrypts its own
+# file.
+creation_rules:
+  - path_regex: secrets/staging\.yaml$
+    age: age1REPLACE_WITH_YOUR_STAGING_PUBLIC_KEY
+  - path_regex: secrets/prod\.yaml$
+    age: age1REPLACE_WITH_YOUR_PROD_PUBLIC_KEY

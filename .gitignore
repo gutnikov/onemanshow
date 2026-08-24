@@ -8,3 +8,9 @@ playwright-report/
 !.env.example
 *.log
 .DS_Store
+
+# Key material and anything decrypted to a separate file. The sops-encrypted
+# secrets/*.yaml files themselves ARE committed - that is the point of them.
+*.agekey
+*.dec
+*.dec.yaml

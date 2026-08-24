@@ -11,9 +11,9 @@ All tasks are performed in this repository or in an external service, except gro
 ## 2. Secrets foundation
 
 - [ ] 2.1 Generate two age identities, one for staging and one for production; verify each private key decrypts only its own environment's file and fails on the other
-- [ ] 2.2 Add `.sops.yaml` with path rules binding each environment's file to its recipient; verify an encrypted test file shows only ciphertext in `git show`
+- [x] 2.2 Add `.sops.yaml` with path rules binding each environment's file to its recipient; verify an encrypted test file shows only ciphertext in `git show`
 - [ ] 2.3 Add the age private keys as Actions secrets; verify a throwaway workflow decrypts the staging file and prints a known value
-- [ ] 2.4 Document that these keys are the only secrets outside the repository; verify by grepping the template for any other plaintext credential and finding none
+- [x] 2.4 Document that these keys are the only secrets outside the repository; verify by grepping the template for any other plaintext credential and finding none
 
 ## 3. Registry
 
