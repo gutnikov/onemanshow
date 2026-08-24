@@ -129,6 +129,14 @@ The complementary half is synthetic traffic, which is why `ship/smoke` is a tagg
 
 A single package with `web/`, `api/` and `shared/` directories: one install, one lockfile, one Dockerfile. Turbo or nx solve problems a solo project does not have, and fewer configuration files is a direct benefit to an agent author.
 
+### Readiness must detect drift in both directions
+
+Found on the rig while exercising the cascade, and the more valuable of the two findings. After the irreversible migration was released and production rolled back one step, the older code failed with `column "message" does not exist` — while `/health` answered `200 {"ready":true}`, because the check asked only whether applied migrations were *fewer* than expected. In the database there were two; the running code expected one.
+
+That is the worst possible moment to look healthy. Our own design makes the external liveness check the one mandatory signal, precisely because it survives when the machine does not — and a one-sided readiness check keeps it green through a rollback that left the schema ahead of the code. Smoke catches this, but smoke runs once after a deploy while liveness runs continuously, so the observation window would have watched a broken production and closed green.
+
+Readiness therefore compares in both directions and names the two states separately: `migrations-behind` and `schema-ahead`. The comparison was extracted into a pure function so `check` covers it, which is the same argument as everywhere else — the cheapest gate should hold as much as it can.
+
 ## Risks / Trade-offs
 
 - **The Claude Code Slack app may ignore messages authored by another application** → This is the one unknown that could change the shape of the automation layer, which is why measuring it is a goal of this change rather than an assumption. Fallbacks in order: post with a user token so the message is an ordinary human one; failing that, run the agent headless in an Actions workflow for the small number of events that need judgment. Either way the pipeline itself is unaffected.

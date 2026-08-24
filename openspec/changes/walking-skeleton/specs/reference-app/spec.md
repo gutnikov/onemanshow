@@ -16,7 +16,7 @@ The reference application SHALL serve one page that displays a value it obtained
 - **THEN** exactly one image contains both the API and the built frontend assets
 
 ### Requirement: Readiness endpoint reflects real readiness
-The application SHALL expose `/health`, which SHALL return a 2xx response only when the application can actually serve requests, including that its database is reachable and its migrations are applied. It SHALL NOT return a static success.
+The application SHALL expose `/health`, which SHALL return a 2xx response only when the application can actually serve requests, including that its database is reachable and that its schema and its code agree. Drift SHALL be detected in **both** directions: a schema behind the code and a schema ahead of it are each a non-ready state. It SHALL NOT return a static success.
 
 #### Scenario: Database unreachable
 - **WHEN** the application is running but cannot reach its database
@@ -25,6 +25,10 @@ The application SHALL expose `/health`, which SHALL return a 2xx response only w
 #### Scenario: Migrations not applied
 - **WHEN** the application is running against a database whose schema is behind the application's expectations
 - **THEN** `/health` returns a non-2xx response
+
+#### Scenario: Schema ahead of the code
+- **WHEN** the application is running against a database whose schema has moved past what this build expects, which is the state a rollback leaves behind
+- **THEN** `/health` returns a non-2xx response, so the external liveness check goes red during exactly the incident it exists to catch
 
 #### Scenario: Fully ready
 - **WHEN** the application can serve requests and its schema is current
