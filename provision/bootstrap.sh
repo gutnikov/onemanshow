@@ -45,13 +45,19 @@ free -h | sed -n '1p;3p'
 say "firewall"
 # Order matters and is not cosmetic: allowing 22 before enabling ufw is what
 # keeps this from ending the session that is running it.
+#
+# Note what this does NOT protect. Docker writes its own iptables rules, and a
+# published container port bypasses ufw entirely - a database published with
+# -p 5432:5432 is reachable from the internet with the firewall showing "deny
+# incoming". Container ports that are not meant to be public must therefore be
+# bound to 127.0.0.1 explicitly; the firewall will not do it for them.
 ufw allow 22/tcp >/dev/null
 ufw allow 80/tcp >/dev/null
 ufw allow 443/tcp >/dev/null
 ufw --force default deny incoming >/dev/null
 ufw --force default allow outgoing >/dev/null
 ufw --force enable >/dev/null
-ufw status verbose | head -8
+ufw status
 
 say "ssh: keys only"
 # Safe because this script is reached over a key-authenticated session.
