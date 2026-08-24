@@ -1,0 +1,7 @@
+#!/bin/sh
+# Everything that needs no running application. Anything requiring a live
+# instance belongs in ship/e2e or ship/smoke instead.
+set -eu
+npm run typecheck
+npm run lint
+npm run test

@@ -1,0 +1,8 @@
+#!/bin/sh
+# Produces exactly one image, tagged only with the commit SHA. No floating tag
+# is ever created: with one you cannot verify what is running.
+set -eu
+SHA="${SHIP_SHA:-$(git rev-parse HEAD)}"
+IMAGE="${SHIP_IMAGE:-onemanshow-reference}"
+docker build -t "${IMAGE}:${SHA}" .
+echo "${IMAGE}:${SHA}"

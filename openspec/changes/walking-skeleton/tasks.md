@@ -23,26 +23,25 @@ All tasks are performed in this repository or in an external service, except gro
 
 ## 4. Reference application
 
-- [ ] 4.1 Scaffold a single package with `web/`, `api/` and `shared/` directories, one lockfile and one shared TypeScript configuration; verify `tsc --noEmit` passes across all three
-- [ ] 4.2 Add one table with its first migration; verify the migration produces readable SQL and applies to an empty database
-- [ ] 4.3 Add a seed writing exactly one row, and use it as the end-to-end fixture source; verify seeding twice from clean yields identical state
-- [ ] 4.4 Add one API route returning the seeded value through the typed client; verify changing the route's response type breaks the frontend build
-- [ ] 4.5 Add one page that renders the value, using typed routing and one component copied in from shadcn; verify a deliberately misspelled route parameter fails `tsc` rather than only failing at runtime
-- [ ] 4.6 Implement `/health` to check database reachability and migration currency; verify it returns non-2xx with the database stopped and with the schema deliberately behind
-- [ ] 4.7 Add the end-to-end test that opens the page and asserts the seeded value, and tag a non-mutating subset as the smoke set; verify the smoke set passes twice in a row against the same environment with no state change
-- [ ] 4.8 Add one unit test; verify it runs in the check hook and requires no running application
-- [ ] 4.9 Add the deliberate failure switch, disabled by default, that breaks the smoke set while the application still starts; verify the smoke set fails when it is enabled and passes when it is not
-- [ ] 4.10 Add the deliberately irreversible migration, inert until enabled, with a written note of the manual step reverting it would require; verify it is not applied while inert
+- [x] 4.1 Scaffold a single package with `web/`, `api/` and `shared/` directories, one lockfile and one shared TypeScript configuration; verify `tsc --noEmit` passes across all three
+- [x] 4.2 Add one table with its first migration; verify the migration produces readable SQL and applies to an empty database
+- [x] 4.3 Add a seed writing exactly one row, and use it as the end-to-end fixture source; verify seeding twice from clean yields identical state
+- [x] 4.4 Add one API route returning the seeded value through the typed client; verify changing the route's response type breaks the frontend build
+- [x] 4.5 Add one page that renders the value, using typed routing and one component copied in from shadcn; verify a deliberately misspelled route parameter fails `tsc` rather than only failing at runtime
+- [x] 4.6 Implement `/health` to check database reachability and migration currency; verify it returns non-2xx with the database stopped and with the schema deliberately behind
+- [x] 4.7 Add the end-to-end test that opens the page and asserts the seeded value, and tag a non-mutating subset as the smoke set; verify the smoke set passes twice in a row against the same environment with no state change
+- [x] 4.8 Add one unit test; verify it runs in the check hook and requires no running application
+- [x] 4.9 Add the deliberate failure switch, disabled by default, that breaks the smoke set while the application still starts; verify the smoke set fails when it is enabled and passes when it is not
+- [x] 4.10 Add the deliberately irreversible migration, inert until enabled, with a written note of the manual step reverting it would require; verify it is not applied while inert
 - [ ] 4.11 Add a multi-stage Dockerfile producing one image that serves both the API and the built assets; verify the image runs the page end to end and measures under 150 MB
 
 ## 5. Application hooks
 
-- [ ] 5.1 Add `ship/check` running type checking, linting and unit tests; verify it succeeds with no database and no deployed application present
+- [x] 5.1 Add `ship/check` running type checking, linting and unit tests; verify it succeeds with no database and no deployed application present
 - [ ] 5.2 Add `ship/build`; verify it produces an image tagged with the current commit SHA
-- [ ] 5.3 Add `ship/migrate` and `ship/seed`; verify each is idempotent when run twice against the same state
-- [ ] 5.4 Add `ship/e2e` and `ship/smoke`, both reading their target from `SHIP_URL`; verify each fails cleanly when `SHIP_URL` is unset rather than defaulting to an environment
-- [ ] 5.5 Confirm each hook exits non-zero on failure; verify by forcing one failure in each and observing the exit code
-- [ ] 5.6 Verify the documented degradation for every hook by temporarily removing it one at a time and confirming the pipeline reduces capability as specified rather than failing
+- [x] 5.3 Add `ship/migrate` and `ship/seed`; verify each is idempotent when run twice against the same state
+- [x] 5.4 Add `ship/e2e` and `ship/smoke`, both reading their target from `SHIP_URL`; verify each fails cleanly when `SHIP_URL` is unset rather than defaulting to an environment
+- [x] 5.5 Confirm each hook exits non-zero on failure; verify by forcing one failure in each and observing the exit code
 
 ## 6. The machine
 
@@ -60,7 +59,8 @@ All tasks are performed in this repository or in an external service, except gro
 - [ ] 7.3 Add the reusable release workflow: promote the validated image without rebuilding, mark the release in error tracking, deploy, then run `ship/smoke`; verify the deployed image digest equals the digest validated on staging
 - [ ] 7.4 Add the reusable rollback workflow returning production one step and refusing to step further; verify that a rollback whose target also fails smoke stops and reports instead of continuing, and that a rollback of a rollback is refused
 - [ ] 7.5 Add workflow stubs delegating to this repository's reusable workflows at `@main`; verify each stub is under ten lines and that changing a workflow here alters the testbed's behaviour with no edit in the testbed
-- [ ] 7.6 Verify no floating tags exist anywhere in the pipeline by grepping the workflows for `latest`, `staging` and `prod` as image tags and finding none
+- [ ] 7.6 Verify the documented degradation for every hook by temporarily removing it one at a time and confirming the pipeline reduces capability as specified rather than failing (moved here from group 5: degradation is a property of the pipeline, so it cannot be checked before one exists)
+- [ ] 7.7 Verify no floating tags exist anywhere in the pipeline by grepping the workflows for `latest`, `staging` and `prod` as image tags and finding none
 
 ## 8. Observability
 

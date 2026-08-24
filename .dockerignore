@@ -1,0 +1,11 @@
+node_modules
+dist
+web/dist
+.git
+.claude
+openspec
+e2e
+tests
+test-results
+playwright-report
+*.md

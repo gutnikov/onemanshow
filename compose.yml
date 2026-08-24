@@ -1,0 +1,19 @@
+# Local development only. Staging and production run the same image against
+# their own database container, provisioned on the machine rather than here.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: onemanshow
+      POSTGRES_PASSWORD: local
+      POSTGRES_DB: onemanshow
+    ports: ['5432:5432']
+    volumes: ['local_db:/var/lib/postgresql/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U onemanshow']
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  local_db:

@@ -1,0 +1,6 @@
+#!/bin/sh
+# The tagged subset, run against production. Non-mutating by construction: it
+# exercises real pages, which is the failure a liveness check cannot see.
+set -eu
+: "${SHIP_URL:?SHIP_URL is not set}"
+npx playwright test --grep @smoke

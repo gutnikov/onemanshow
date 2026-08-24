@@ -1,0 +1,6 @@
+#!/bin/sh
+# Writes the synthetic fixture set the end-to-end suite relies on. One source,
+# not two: drifting fixtures break staging instead of fixing it.
+set -eu
+: "${DATABASE_URL:?DATABASE_URL is not set}"
+npm run db:seed
