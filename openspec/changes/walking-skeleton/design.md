@@ -105,7 +105,9 @@ The registry may be fragile. Production keeps the image in its local cache, so r
 
 ### Exactly one secret outside the repository
 
-The private age key, in exactly two places: an Actions secret and the VPS. Every other credential is encrypted in git with SOPS. That sentence is the entire trust boundary, and it means no later setup step ever adds another platform secret — configuring a new service encrypts its token into the repository, versioned with the code and detectable by reading the repository. Separate age identities per environment, since both files sit on the same machine.
+The private age key, in exactly **one** place: a GitHub Actions secret. Every other credential is encrypted in git with SOPS. That sentence is the entire trust boundary, and it means no later setup step ever adds another platform secret — configuring a new service encrypts its token into the repository, versioned with the code and detectable by reading the repository. Separate age identities per environment, so a leaked key exposes one environment rather than both.
+
+Corrected while provisioning: this originally said two places, the second being the machine. It does not need to be there. Deployment decrypts on the deploying host — CI — and passes values to the container as environment, so the machine never holds the key. Decrypted *values* do land on it, which is unavoidable because the application needs them, but not the key that would open every other secret in the repository. One copy instead of two is a smaller blast radius for free.
 
 ### A domain is optional, a host name is not
 

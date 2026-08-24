@@ -6,12 +6,15 @@ nothing.
 
 ## The one secret that is not here
 
-The private age key. It exists in exactly two places outside this repository:
+The private age key. It exists in exactly one place outside this repository: a
+GitHub Actions secret, so the pipeline can decrypt during deploy.
 
-1. as a GitHub Actions secret, so the pipeline can decrypt during deploy;
-2. on the machine, so a container can read its own environment.
+It is deliberately **not** on the machine. Deployment decrypts on the deploying
+host and passes values to the container as environment, so the machine holds
+decrypted values — unavoidable, the application needs them — but never the key
+that would open every other secret here.
 
-Keep a third copy in a password manager. Losing it means every value in these
+Keep a second copy in a password manager. Losing it means every value in these
 files is unrecoverable — encrypted with no way back.
 
 ## Adding a value
