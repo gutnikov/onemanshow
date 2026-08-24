@@ -33,12 +33,12 @@ All tasks are performed in this repository or in an external service, except gro
 - [x] 4.8 Add one unit test; verify it runs in the check hook and requires no running application
 - [x] 4.9 Add the deliberate failure switch, disabled by default, that breaks the smoke set while the application still starts; verify the smoke set fails when it is enabled and passes when it is not
 - [x] 4.10 Add the deliberately irreversible migration, inert until enabled, with a written note of the manual step reverting it would require; verify it is not applied while inert
-- [ ] 4.11 Add a multi-stage Dockerfile producing one image that serves both the API and the built assets; verify the image runs the page end to end and measures under 150 MB
+- [x] 4.11 Add a multi-stage Dockerfile producing one image that serves both the API and the built assets; verify the image runs the page end to end and measures under 150 MB
 
 ## 5. Application hooks
 
 - [x] 5.1 Add `ship/check` running type checking, linting and unit tests; verify it succeeds with no database and no deployed application present
-- [ ] 5.2 Add `ship/build`; verify it produces an image tagged with the current commit SHA
+- [x] 5.2 Add `ship/build`; verify it produces an image tagged with the current commit SHA
 - [x] 5.3 Add `ship/migrate` and `ship/seed`; verify each is idempotent when run twice against the same state
 - [x] 5.4 Add `ship/e2e` and `ship/smoke`, both reading their target from `SHIP_URL`; verify each fails cleanly when `SHIP_URL` is unset rather than defaulting to an environment
 - [x] 5.5 Confirm each hook exits non-zero on failure; verify by forcing one failure in each and observing the exit code
@@ -47,7 +47,7 @@ All tasks are performed in this repository or in an external service, except gro
 
 - [ ] 6.1 Provision the VPS with a container runtime, a firewall and the production age key in place; verify the firewall exposes only the intended ports and the key decrypts the production secrets file on the box
 - [ ] 6.2 Add deployment configuration with separate staging and production destinations, each with its own database container and named volume; verify the two volumes are distinct and neither environment can reach the other's database
-- [ ] 6.3 Add hard CPU, memory and log-size limits to the staging containers only; verify the limits are in effect under `docker stats` while an end-to-end run is in progress
+- [x] 6.3 Add hard CPU, memory and log-size limits to the staging containers only; verify the limits are in effect under `docker stats` while an end-to-end run is in progress
 - [ ] 6.4 Configure the proxy to route the production, staging and automation host names with certificates; verify all three resolve over TLS and that each reaches only its own environment
 - [ ] 6.5 Implement the no-domain path using host names derived from the machine's IP through a wildcard DNS service rather than a bare IP; verify staging and production remain separately addressable over TLS with no domain registered
 - [x] 6.6 Add the staging reset routine with a guard refusing any target whose identity does not match staging; verify it destroys the staging volume and, when pointed at the production volume, refuses and performs no action
