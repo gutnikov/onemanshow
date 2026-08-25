@@ -39,11 +39,10 @@ jobs:
       SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
     steps:
       - uses: actions/checkout@v4
-      - name: install sops and a postgres client
+      - name: install sops
         run: |
           curl -fsSL -o /tmp/sops https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64
           sudo install -m 0755 /tmp/sops /usr/local/bin/sops
-          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client >/dev/null
 
       - uses: gutnikov/onemanshow/.github/actions/ssh-agentless@main
         with:
@@ -62,7 +61,12 @@ jobs:
         run: |
           set -eu
           ssh -f -N -L 5432:localhost:5432 "root@${{ inputs.host }}"
-          pg_dump --no-owner --no-privileges --format=plain "$DATABASE_URL_TUNNEL" > /tmp/backup.sql
+          # The client comes from the same image as the server, so the versions
+          # match by construction. A distribution's postgresql-client trails the
+          # server and pg_dump refuses to dump a newer one at all.
+          docker run --rm --network host -e PGURL="$DATABASE_URL_TUNNEL" \
+            postgres:17-alpine \
+            sh -c 'pg_dump --no-owner --no-privileges --format=plain "$PGURL"' > /tmp/backup.sql
           bytes="$(wc -c < /tmp/backup.sql)"
           echo "dump is $bytes bytes"
           # An empty or trivially small dump is the usual way this fails
@@ -77,8 +81,10 @@ jobs:
           SCRATCH: postgres://scratch:scratch@localhost:5544/scratch
         run: |
           set -eu
-          psql "$SCRATCH" -q -f /tmp/backup.sql
-          value="$(psql "$SCRATCH" -t -A -c '${{ inputs.known_row_query }}')"
+          docker run --rm --network host -e PGURL="$SCRATCH" -v /tmp/backup.sql:/backup.sql:ro \
+            postgres:17-alpine sh -c 'psql -q -f /backup.sql "$PGURL"'
+          value="$(docker run --rm --network host -e PGURL="$SCRATCH" -e Q='${{ inputs.known_row_query }}' \
+            postgres:17-alpine sh -c 'psql -t -A -c "$Q" "$PGURL"')"
           echo "known row reads back as: $value"
           if [ -z "$value" ]; then
             echo "::error::The dump restored but the known row is missing, so the backup is not usable."
