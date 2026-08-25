@@ -66,6 +66,36 @@ case "${LIVENESS_SOURCE:-}" in
     if [ -z "${SENTRY_READ_TOKEN:-}" ] || [ -z "$ORG" ] || [ -z "$PROJECT" ]; then
       unhealthy "liveness is declared but cannot be queried - treat as unknown"
     else
+      # The declaration is verified against the world, not trusted. This file
+      # once said no monitor was configured while one had been running for
+      # hours, and the window was reported as resting on two sources when it
+      # rested on three. A hand-maintained assertion about an external service
+      # drifts, and the drift silently weakens the check.
+      if ! mon="$(curl -sS -f -H "Authorization: Bearer ${SENTRY_READ_TOKEN}" \
+                   "https://sentry.io/api/0/organizations/${ORG}/uptime/")"; then
+        unhealthy "liveness is declared but the monitor list could not be read - treat as unknown"
+        mon=""
+      else
+        lag="$(printf '%s' "$mon" | ENVIRONMENT="$ENVIRONMENT" PROJECT="$PROJECT" python3 -c '
+import json, os, sys
+env, project = os.environ["ENVIRONMENT"], os.environ["PROJECT"]
+active = [m for m in json.load(sys.stdin)
+          if m.get("projectSlug") == project
+          and m.get("environment") == env
+          and m.get("status") == "active"]
+if not active:
+    print("NONE")
+else:
+    m = active[0]
+    every = int(m.get("intervalSeconds", 0))
+    fails = int(m.get("downtimeThreshold", 0))
+    url = m.get("url", "?")
+    print(str(every * fails // 60) + "m " + str(every // 60) + "m " + str(fails) + " " + url)')"
+        if [ "$lag" = NONE ]; then
+          unhealthy "liveness is declared as ${LIVENESS_SOURCE} but no active monitor exists for ${PROJECT}/${ENVIRONMENT} - the declaration is stale"
+        fi
+      fi
+
       url="https://sentry.io/api/0/projects/${ORG}/${PROJECT}/issues/?query=is%3Aunresolved+issue.category%3Auptime&environment=${ENVIRONMENT}&statsPeriod=24h"
       if ! body="$(curl -sS -f -H "Authorization: Bearer ${SENTRY_READ_TOKEN}" "$url")"; then
         unhealthy "could not reach the uptime monitor - treat as unknown, not as fine"
@@ -75,11 +105,17 @@ case "${LIVENESS_SOURCE:-}" in
           # Downtime is reported separately from code defects on purpose: they
           # are different failures with different remedies.
           unhealthy "$downs downtime event(s) reported by the external monitor"
+        elif [ "$lag" != NONE ] && [ -n "$lag" ]; then
+          # Derived from the monitor, never from a number written here. The
+          # figure in this message was wrong within hours of being written,
+          # because the interval was changed and the sentence was not.
+          set -- $lag
+          say "  liveness: no downtime reported, monitoring $4"
+          say "            detection takes up to ~$1 (every $2, $3 failures to declare),"
+          say "            so an outage starting within $1 of the window closing"
+          say "            is not caught before it closes"
         else
           say "  liveness: no downtime reported"
-          say "            detection takes up to ~20 min at a 10-minute interval"
-          say "            with a 2-failure threshold, so an outage starting late"
-          say "            in the window may not be caught before it closes"
         fi
       fi
     fi
@@ -87,6 +123,23 @@ case "${LIVENESS_SOURCE:-}" in
   "")
     say "  liveness: NOT CHECKED - no external monitor is declared, so the one"
     say "            signal that survives the machine dying is missing"
+    # Check the other direction too. A monitor that exists while the
+    # configuration denies it takes no part in this decision, and that is
+    # worse than having none, because someone believes they are covered.
+    if [ -n "$ORG" ] && [ -n "$PROJECT" ] && [ -n "${SENTRY_READ_TOKEN:-}" ]; then
+      if mon="$(curl -sS -f -H "Authorization: Bearer ${SENTRY_READ_TOKEN}" \
+                 "https://sentry.io/api/0/organizations/${ORG}/uptime/")"; then
+        found="$(printf '%s' "$mon" | ENVIRONMENT="$ENVIRONMENT" PROJECT="$PROJECT" python3 -c '
+import json, os, sys
+env, project = os.environ["ENVIRONMENT"], os.environ["PROJECT"]
+print(len([m for m in json.load(sys.stdin)
+           if m.get("projectSlug") == project and m.get("environment") == env
+           and m.get("status") == "active"]))')"
+        if [ "$found" -gt 0 ]; then
+          unhealthy "$found active monitor(s) exist for ${PROJECT}/${ENVIRONMENT} but the configuration declares none, so liveness took no part in this verdict"
+        fi
+      fi
+    fi
     ;;
   *)
     unhealthy "unknown liveness source: ${LIVENESS_SOURCE}"
