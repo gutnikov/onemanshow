@@ -68,6 +68,7 @@ jobs:
           read_secret DATABASE_URL DATABASE_URL
           read_secret POSTGRES_PASSWORD POSTGRES_PASSWORD
           read_secret DATABASE_URL_TUNNEL DATABASE_URL_TUNNEL
+          read_secret SENTRY_DSN SENTRY_DSN
 
       # Fail rather than rebuild: recovering by rebuilding would deploy an
       # artifact nobody verified.

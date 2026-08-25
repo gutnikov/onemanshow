@@ -76,6 +76,7 @@ jobs:
           read_secret DATABASE_URL DATABASE_URL
           read_secret POSTGRES_PASSWORD POSTGRES_PASSWORD
           read_secret DATABASE_URL_TUNNEL DATABASE_URL_TUNNEL
+          read_secret SENTRY_DSN SENTRY_DSN
 
       # Production's version tag carries a destination suffix; the commit is
       # what the baseline needs, so the suffix is stripped.
