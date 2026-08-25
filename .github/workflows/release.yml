@@ -8,7 +8,10 @@ name: release
 on:
   workflow_call:
     inputs:
-      image: { required: true, type: string }
+      image:
+        description: Repository path WITHOUT the registry host, which the deploy tool prepends from its own config
+        required: true
+        type: string
       sha: { required: true, type: string }
       url: { description: Address of production, required: true, type: string }
     secrets:

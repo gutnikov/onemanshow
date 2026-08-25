@@ -9,7 +9,10 @@ name: pr
 on:
   workflow_call:
     inputs:
-      image: { required: true, type: string }
+      image:
+        description: Repository path WITHOUT the registry host, which the deploy tool prepends from its own config
+        required: true
+        type: string
       service: { description: Service name of the production destination, required: true, type: string }
       staging_service: { required: true, type: string }
       registry_user: { description: Registry account name (not a secret), required: true, type: string }

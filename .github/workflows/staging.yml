@@ -11,7 +11,10 @@ name: staging
 on:
   workflow_call:
     inputs:
-      image: { required: true, type: string }
+      image:
+        description: Repository path WITHOUT the registry host, which the deploy tool prepends from its own config
+        required: true
+        type: string
       sha: { description: Commit under review, required: true, type: string }
       registry_user: { required: true, type: string }
       host: { required: true, type: string }
