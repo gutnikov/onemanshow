@@ -112,6 +112,19 @@ Production SHALL receive the exact image that passed staging validation. The pip
 - **WHEN** the validated image cannot be retrieved at release time
 - **THEN** the release fails rather than rebuilding, because a rebuilt image is not the artifact that was verified
 
+### Requirement: Merging must preserve the validated commit
+The commit that reaches the main branch SHALL be the same commit that was built and validated, so merging SHALL be a fast-forward. A merge that produces a new commit - a merge commit, a squash, or a rebase - discards the identity the promoted artifact was built against, leaving nothing to promote without rebuilding.
+
+This is why a branch must be up to date with main before merging: up to date plus fast-forward means the validated commit becomes main's head unchanged.
+
+#### Scenario: The branch is up to date
+- **WHEN** an approved change whose branch is up to date with main is merged
+- **THEN** main's new head is the commit that was validated, and the artifact built for it is the one promoted
+
+#### Scenario: The merge would create a new commit
+- **WHEN** merging would produce a commit that was never built or validated
+- **THEN** the merge is refused, because promoting would require rebuilding and rebuilding produces an artifact nobody verified
+
 ### Requirement: Production and the main branch agree
 After a successful release the commit running in production SHALL equal the head of the main branch. Every commit reaching main SHALL have travelled the full pipeline; no commit, including documentation or bookkeeping, SHALL bypass it.
 
