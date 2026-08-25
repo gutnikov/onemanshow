@@ -38,7 +38,16 @@ absence of the signals we can see, in the time we allowed.
 ## Closing it
 
 Green at the end of the window: close the ticket as completed, run openspec's
-sync and archive, and **take the next change from the queue**. That last part is
+sync and archive, and **take the next change from the queue**.
+
+The archive is a documentation commit, and the release trigger ignores
+documentation paths, so it does not deploy. That is not incidental. While the
+trigger fired on every push, this closing step built a new image from the
+archive commit and shipped it to production having never been through staging —
+the skill's own last move broke the invariant the rest of it protects, every
+time, and reopened an observation window with nobody observing. If you are
+working in a project whose trigger has no path filter, fix the trigger before
+archiving. That last part is
 easy to forget and its failure mode is the worst kind — everything looks healthy
 while the queue silently stops.
 

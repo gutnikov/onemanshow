@@ -1,0 +1,13 @@
+# Instance wiring: replace every REPLACE_ME and commit this to your own repo.
+name: on pull request
+on: { pull_request: { branches: [main] } }
+jobs:
+  pr:
+    uses: gutnikov/onemanshow/.github/workflows/pr.yml@main
+    with:
+      # Without the registry host; see on-main.yml.
+      image: REPLACE_ME_DOCKERHUB_USER/onemanshow-reference
+      registry_user: REPLACE_ME_DOCKERHUB_USER
+      service: onemanshow
+      staging_service: onemanshow-staging
+    secrets: inherit

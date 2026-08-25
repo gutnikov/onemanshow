@@ -1,0 +1,20 @@
+# The template's own gate. It had none: pr.yml and the rest are workflow_call
+# and never self-trigger, so nothing here ever ran except the instance stubs,
+# which failed at startup on every push and taught everyone to ignore red.
+name: template ci
+on:
+  pull_request:
+  push: { branches: [main] }
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: the reference app must pass its own check hook
+        run: ./ship/check
+      - run: pip install pyyaml
+      - name: the instance stubs must match the workflows they call
+        run: python3 scripts/check-instance-stubs.py --annotate

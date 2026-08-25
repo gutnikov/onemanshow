@@ -8,6 +8,14 @@ cannot examine a sentence.
 
 1. **Create the branch and the draft pull request.** Name the branch after the
    ticket. The pull request stays draft until the change leaves `dev`.
+
+   Reference the ticket **without a closing keyword** — "Ticket: #12", never
+   "Closes #12". A closing keyword makes the host close the ticket the instant
+   the merge lands, which collapses closing into merging. Closing is a separate
+   axis for one reason: `released` and not yet closed *is* the observation
+   window. Closed at merge, the ticket reads completed for the whole window, and
+   if the window then goes red the change is already recorded as having
+   succeeded.
 2. **Create the openspec change** and write its proposal there.
 3. **Commit the proposal as the first commit.** Grill then happens in a
    reviewable diff, and the person can see how the framing changed rather than

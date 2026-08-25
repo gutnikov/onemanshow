@@ -33,3 +33,16 @@ Every step described as being at the change's commit SHALL execute code checked 
 #### Scenario: A change that moves a fixture is actually exercised
 - **WHEN** a change alters both the value `ship/seed` writes and the expectation the suite asserts
 - **THEN** the stand serves the change's new value, so a pipeline that ran the default branch's code for both would report green without the change having been validated, and that arrangement SHALL fail instead
+
+### Requirement: Only deployable commits release
+The release trigger SHALL ignore commits that touch only documentation, planning artifacts and pipeline wiring. Releasing on such a commit builds an image from it and deploys that image to production without validation, and a rebuilt image is not the artifact that passed — builds are not bit-reproducible, so identical code does not mean the same artifact.
+
+Because of this, production SHALL be compared against the most recent commit on the default branch that touched a deployable path, not against the branch tip. Comparing against the tip refuses every change that follows a documentation commit.
+
+#### Scenario: The closing archive commit
+- **WHEN** a change is archived after its observation window closes
+- **THEN** no release runs, because the commit changes only planning artifacts — otherwise the closing step of every change would ship an unvalidated image and reopen a window nobody is watching
+
+#### Scenario: A change follows a documentation commit
+- **WHEN** the next change's merge guards are checked and the default branch's tip is a documentation commit
+- **THEN** production matching the last deployable commit satisfies the guard, and the tip being ahead is not treated as an unresolved rollback

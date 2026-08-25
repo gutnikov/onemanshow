@@ -1,0 +1,42 @@
+# Instance wiring: replace every REPLACE_ME and commit this to your own repo.
+#
+# paths-ignore is load-bearing, not tidiness. Without it any commit to main
+# releases - including the documentation commit that closes a change, which
+# would build a NEW image from that commit and deploy it to production having
+# never been through staging. That breaks "deployed image == validated
+# artifact", and it reopens an observation window with nobody observing.
+# A rebuilt image is not the artifact that passed validation even when the
+# code in it is identical, because builds are not bit-reproducible.
+#
+# The consequence is that main's tip is not always what production runs. The
+# invariant is therefore "production equals the most recent commit on main
+# that touched a deployable path" - see reference/gates.md, which carries the
+# command that reads it.
+name: on main
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'openspec/**'
+      - '.claude/**'
+      - '.github/**'
+      - '**/*.md'
+      - LICENSE
+  workflow_dispatch:
+jobs:
+  release:
+    uses: gutnikov/onemanshow/.github/workflows/release.yml@main
+    with:
+      # Repository path WITHOUT the registry host - the deploy tool prepends
+      # that from its own config. Including it produced docker.io/docker.io/...
+      image: REPLACE_ME_DOCKERHUB_USER/onemanshow-reference
+      sha: ${{ github.sha }}
+      registry_user: REPLACE_ME_DOCKERHUB_USER
+      host: REPLACE_ME_SERVER_IP
+      domain: REPLACE_ME_PRODUCTION_HOSTNAME
+      service: onemanshow
+      # From `ssh-keyscan REPLACE_ME_SERVER_IP`. Not a secret; pinning it stops
+      # the deploy trusting whatever answers.
+      host_key: |
+        REPLACE_ME_KNOWN_HOSTS_LINES
+    secrets: inherit

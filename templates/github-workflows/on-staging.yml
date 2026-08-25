@@ -1,0 +1,25 @@
+# Instance wiring: replace every REPLACE_ME. See this directory's README.
+#
+# Dispatched with the commit to validate. It must be the full 40-character
+# commit: the workflow refuses an abbreviation up front, because passing one
+# reached the deploy and failed there as an image "not found", which reads like
+# a build problem rather than a bad argument.
+name: on staging
+on:
+  workflow_dispatch:
+    inputs:
+      sha: { description: Full 40-character commit to validate, required: true }
+jobs:
+  staging:
+    uses: gutnikov/onemanshow/.github/workflows/staging.yml@main
+    with:
+      image: REPLACE_ME_DOCKERHUB_USER/onemanshow-reference
+      sha: ${{ inputs.sha }}
+      registry_user: REPLACE_ME_DOCKERHUB_USER
+      host: REPLACE_ME_SERVER_IP
+      domain: REPLACE_ME_PRODUCTION_HOSTNAME
+      staging_domain: REPLACE_ME_STAGING_HOSTNAME
+      staging_db_container: onemanshow-staging-db
+      host_key: |
+        REPLACE_ME_KNOWN_HOSTS_LINES
+    secrets: inherit

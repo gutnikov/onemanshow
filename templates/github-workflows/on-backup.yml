@@ -1,0 +1,19 @@
+# Instance wiring: replace every REPLACE_ME. See this directory's README.
+#
+# The backup currently lands in an Actions artifact, which lives in the same
+# account as the repository and the deploy keys. Losing that account loses the
+# backup with it - move the destination to storage in a different account
+# before this matters.
+name: backup
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+jobs:
+  backup:
+    uses: gutnikov/onemanshow/.github/workflows/backup.yml@main
+    with:
+      host: REPLACE_ME_SERVER_IP
+      host_key: |
+        REPLACE_ME_KNOWN_HOSTS_LINES
+    secrets: inherit

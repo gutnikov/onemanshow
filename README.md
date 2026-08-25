@@ -16,8 +16,15 @@ Everything else sits on free tiers.
    ```
    The `ship` skill's `init` will do this for you once it exists.
 
-2. **Replace the placeholders.** `grep -rn REPLACE_ME .github/ config/` and
-   `.sops.yaml` — the registry path, the host names, and the age recipients.
+2. **Copy your workflows in, then replace the placeholders.** The files in
+   `templates/github-workflows/` are yours, not the template's:
+   ```
+   cp templates/github-workflows/on-*.yml .github/workflows/
+   grep -rn REPLACE_ME .github/ config/ .sops.yaml
+   ```
+   The registry path, the host names, and the age recipients. They are kept out
+   of `.github/workflows/` here so they do not run in the template itself with
+   placeholder values — see that directory's README.
 
 3. **Generate your own age keys.** Never keep the ones a template ships with;
    recipients in a template mean somebody else can read your secrets.

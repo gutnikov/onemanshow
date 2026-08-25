@@ -89,11 +89,33 @@ Read the label. Do not infer the cause from the comments.
 - approval recorded
 - the pipeline green **on the current commit**, not an earlier one
 - the branch up to date with main, so the merge is a fast-forward
-- production equal to main — no unresolved rollback
+- production equal to the last **deployable** commit on main — no unresolved rollback
 - no other change in `released` with an open observation window
 - no active incident
 
-All six are readable from the tools. The merge must be a **fast-forward**: a
+All six are readable from the tools. Nothing else checks them: the pipeline
+enforces none of the six, so they are guards only while whoever merges actually
+reads them. Treat that as the current state, not the intent.
+
+Two of them are easy to read wrongly.
+
+**Green on the current commit** is not readable from a dispatched run's own
+commit. A staging run is dispatched from the default branch, so the run reports
+that branch as its commit while validating whatever sha it was handed. Match the
+dispatch input, not the run's `headSha`.
+
+**Production equal to main** used to be exact and no longer is: documentation
+commits do not release, deliberately, so main's tip can sit ahead of production
+with nothing wrong. What must match is the last commit that touched something
+deployable:
+
+```
+git log -1 --format=%H origin/main -- . \
+  ':(exclude)openspec' ':(exclude).claude' ':(exclude).github' ':(exclude)*.md'
+```
+
+Comparing against main's tip instead makes this guard refuse every change that
+follows a documentation commit. The merge must be a **fast-forward**: a
 merge commit, a squash or a rebase produces a commit nobody built, leaving
 nothing to promote without rebuilding — and a rebuilt image is not the one that
 passed validation.

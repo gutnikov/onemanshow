@@ -1,0 +1,15 @@
+# Instance wiring: replace every REPLACE_ME. See this directory's README.
+name: rollback
+on: { workflow_dispatch: }
+jobs:
+  rollback:
+    uses: gutnikov/onemanshow/.github/workflows/rollback.yml@main
+    with:
+      image: REPLACE_ME_DOCKERHUB_USER/onemanshow-reference
+      registry_user: REPLACE_ME_DOCKERHUB_USER
+      host: REPLACE_ME_SERVER_IP
+      domain: REPLACE_ME_PRODUCTION_HOSTNAME
+      service: onemanshow
+      host_key: |
+        REPLACE_ME_KNOWN_HOSTS_LINES
+    secrets: inherit

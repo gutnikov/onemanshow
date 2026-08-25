@@ -68,3 +68,16 @@ A change declared a hotfix SHALL be allowed onto an occupied segment, pausing th
 #### Scenario: The agent judges something urgent
 - **WHEN** the agent believes a change is urgent
 - **THEN** it may say so but SHALL NOT declare a hotfix, or the exceptional path becomes the ordinary one
+
+### Requirement: Closing is not fired by the merge
+Closing SHALL be a decision taken when the observation window ends, never a side effect of merging. Pull requests SHALL reference their ticket without the code host's closing keyword, because that keyword closes the ticket the moment the merge lands.
+
+The window is the interval in which a change is `released` and not yet closed. Closing at merge removes the interval: for its whole duration the ticket reads completed, and a window that then goes red has already been recorded as a success.
+
+#### Scenario: A change is merged and released
+- **WHEN** the merge lands and the release deploys
+- **THEN** the ticket remains open in `released` until the window ends, so its open state is what marks the change as still under observation
+
+#### Scenario: The window goes red
+- **WHEN** a signal goes red before the window ends
+- **THEN** the ticket has not yet been closed, so the failure is handled as an incident on a live change rather than as a new problem after a completed one
