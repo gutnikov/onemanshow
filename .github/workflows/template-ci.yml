@@ -19,3 +19,8 @@ jobs:
       - run: pip install pyyaml
       - name: the instance stubs must match the workflows they call
         run: python3 scripts/check-instance-stubs.py --annotate
+      # A comma in an unquoted flow mapping is valid YAML and invalid to the
+      # runner. It reached a real run twice, because parsing locally proves
+      # nothing about what Actions accepts.
+      - name: action manifests must carry only the keys Actions defines
+        run: python3 scripts/check-action-manifests.py --annotate

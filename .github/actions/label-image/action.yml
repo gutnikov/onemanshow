@@ -4,7 +4,9 @@ inputs:
   image: { description: Registry path, required: true }
   sha: { description: Commit of the built image, required: true }
   service: { description: Service name the destination expects in the label, required: true }
-  destination: { description: Destination name, used as the tag suffix, required: true }
+  destination:
+    description: Destination name, used as the tag suffix
+    required: true
 runs:
   using: composite
   steps:

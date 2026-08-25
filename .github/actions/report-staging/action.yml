@@ -7,9 +7,16 @@ description: >
 inputs:
   ticket: { description: Ticket number, required: true }
   sha: { description: Commit that was validated, required: true }
-  outcome: { description: success, or anything else for failure, required: true }
-  stand_url: { description: Address of the stand, which is the whole artifact of this handover, required: true }
-  run_url: { description: Link to the run, so the detail is one click away, required: false, default: "" }
+  outcome:
+    description: success, or anything else for failure
+    required: true
+  stand_url:
+    description: Address of the stand, which is the whole artifact of this handover
+    required: true
+  run_url:
+    description: Link to the run, so the detail is one click away
+    required: false
+    default: ""
   token: { description: Token able to comment on issues, required: true }
 runs:
   using: composite

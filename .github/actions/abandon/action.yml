@@ -5,7 +5,9 @@ description: >
 inputs:
   ticket: { description: Ticket number, required: true }
   status: { description: The ticket's current status label, required: true }
-  pr: { description: Pull request number, for the record, required: true }
+  pr:
+    description: Pull request number, for the record
+    required: true
   token: { description: Token able to edit and close issues, required: true }
 runs:
   using: composite
