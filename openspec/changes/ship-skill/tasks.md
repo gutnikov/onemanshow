@@ -1,15 +1,15 @@
 ## 1. The entry point
 
-- [ ] 1.1 Write `SKILL.md`: what the skill is for, and the procedure that determines a change's stage from the tools and hands off; verify it names every one of the seven statuses and routes each to exactly one playbook
-- [ ] 1.2 Keep it short enough to be worth loading every time; verify it stays under 150 lines and contains nothing stage-specific that a playbook could hold instead
-- [ ] 1.3 Wire the skill from a local path for our own iteration rather than relying on the copied files; verify that editing a playbook takes effect without recreating the testbed
+- [x] 1.1 Write `SKILL.md`: what the skill is for, and the procedure that determines a change's stage from the tools and hands off; verify it names every one of the seven statuses and routes each to exactly one playbook
+- [x] 1.2 Keep it short enough to be worth loading every time; verify it stays under 150 lines and contains nothing stage-specific that a playbook could hold instead
+- [x] 1.3 Wire the skill from a local path for our own iteration rather than relying on the copied files; verify that editing a playbook takes effect without recreating the testbed
 
 ## 2. Reference material
 
-- [ ] 2.1 Write `reference/gates.md`: the seven statuses, the two closing reasons, the `hotfix` and `paused` flags, and which actor may fire each transition; verify every transition in the state machine appears exactly once and names its actor
-- [ ] 2.2 Record the exclusivity invariant and how to check it from the tools; verify the check is a single command and that it counts a `paused` change as inactive
-- [ ] 2.3 Write `reference/loops.md` as the classification rule rather than a list of known loops; verify it states the question asked of a new action, both bounds, and that an exhaustible external allowance counts as expensive
-- [ ] 2.4 Write `reference/roles.md` as the vocabulary and each role's contract; verify each role says what degrades when it is absent, since that is what the pipeline actually does
+- [x] 2.1 Write `reference/gates.md`: the seven statuses, the two closing reasons, the `hotfix` and `paused` flags, and which actor may fire each transition; verify every transition in the state machine appears exactly once and names its actor
+- [x] 2.2 Record the exclusivity invariant and how to check it from the tools; verify the check is a single command and that it counts a `paused` change as inactive
+- [x] 2.3 Write `reference/loops.md` as the classification rule rather than a list of known loops; verify it states the question asked of a new action, both bounds, and that an exhaustible external allowance counts as expensive
+- [x] 2.4 Write `reference/roles.md` as the vocabulary and each role's contract; verify each role says what degrades when it is absent, since that is what the pipeline actually does
 
 ## 3. Stage playbooks
 
