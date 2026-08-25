@@ -1,0 +1,28 @@
+name: pr head
+description: >
+  Resolves the head commit of the open pull request belonging to a ticket.
+  Separate from merging so the guards can be evaluated without merging.
+inputs:
+  ticket:
+    description: Ticket number
+    required: true
+  token:
+    description: Token able to read pull requests
+    required: true
+outputs:
+  head:
+    description: Head commit of the pull request
+    value: ${{ steps.read.outputs.head }}
+  number:
+    description: Pull request number
+    value: ${{ steps.read.outputs.number }}
+runs:
+  using: composite
+  steps:
+    - id: read
+      shell: sh
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        TICKET: ${{ inputs.ticket }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: '"$ACTION_PATH/pr-head" "$TICKET"'

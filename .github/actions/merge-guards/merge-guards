@@ -52,9 +52,22 @@ fi
 # --- 4. production equals the last deployable commit ------------------------
 # shellcheck disable=SC2086
 lastdep="$(git log -1 --format=%H origin/main -- . $IGNORE)"
+# Asked of production itself. A deploy log or a workflow run records what was
+# intended, and a rollback is exactly when intent and reality differ - which is
+# the case this guard exists for. The alternative was a shell connection to the
+# machine, which would answer correctly and would hand the guard the
+# credentials that can deploy, to learn a fact the artifact knows about itself.
 running="${PRODUCTION_COMMIT:-}"
+if [ -z "$running" ] && [ -n "${PRODUCTION_HEALTH_URL:-}" ]; then
+  # -f is deliberately absent: an unready production still answers with its
+  # identity, and refusing to read it would blind the guard during an incident.
+  running="$(curl -sS --max-time 15 "$PRODUCTION_HEALTH_URL" \
+              | python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("release") or "")
+except Exception: print("")' 2>/dev/null || true)"
+fi
 if [ -z "$running" ]; then
-  bad production "what production is running was not supplied - unknown is not agreement"
+  bad production "production did not report what it is running - unknown is not agreement"
 elif [ "$running" = "$lastdep" ]; then
   ok production "running $running, the last deployable commit"
 else

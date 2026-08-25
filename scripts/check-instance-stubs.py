@@ -14,6 +14,7 @@ PAIRS = [
     ("templates/github-workflows/on-rollback.yml", ".github/workflows/rollback.yml"),
     ("templates/github-workflows/on-backup.yml", ".github/workflows/backup.yml"),
     ("templates/github-workflows/on-pr-closed.yml", ".github/workflows/abandon.yml"),
+    ("templates/github-workflows/on-ready-to-release.yml", ".github/workflows/merge.yml"),
 ]
 
 def triggers(doc):

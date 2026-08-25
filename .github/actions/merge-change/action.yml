@@ -1,0 +1,26 @@
+name: merge change
+description: >
+  Fast-forwards main to the validated commit. Only a fast-forward: any other
+  merge produces a commit that was never built, leaving nothing to promote
+  without rebuilding, and a rebuilt image is not the artifact that passed.
+inputs:
+  ticket:
+    description: Ticket number of the change being merged
+    required: true
+  token:
+    description: Token able to push to main and comment on issues
+    required: true
+outputs:
+  head:
+    description: The commit that became main's head
+    value: ${{ steps.merge.outputs.head }}
+runs:
+  using: composite
+  steps:
+    - id: merge
+      shell: sh
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        TICKET: ${{ inputs.ticket }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: '"$ACTION_PATH/merge-change" "$TICKET"'

@@ -10,7 +10,7 @@
 
 - [x] 2.1 Read all six guards from the tools in one place, each reported by name with what it found. Verify by running it against the change of 2026-08-25, which satisfied all six, and confirming it says so per guard rather than in aggregate
 - [x] 2.2 Make the green-pipeline guard check the sha the validation was given rather than the commit the run reports. Verify with a dispatched validation: the run reports the default branch, and the guard must still be evaluating the change's commit
-- [ ] 2.3 Fast-forward the merge when all six hold, and refuse naming the failing guard when one does not. Verify the refusal by deliberately leaving production behind the last deployable commit
+- [x] 2.3 Fast-forward the merge when all six hold, and refuse naming the failing guard when one does not. Verify the refusal by deliberately leaving production behind the last deployable commit
 - [ ] 2.4 Verify a guard can actually fail: for each of the six, construct the state that violates it and confirm the merge is refused. A guard nobody has seen refuse is not known to work
 
 ## 3. The window closes itself

@@ -1,0 +1,10 @@
+# Instance wiring: replace REPLACE_ME. See this directory's README.
+name: on ready to release
+on:
+  issues:
+    types: [labeled]
+jobs:
+  merge:
+    uses: gutnikov/onemanshow/.github/workflows/merge.yml@main
+    with:
+      production_health_url: https://REPLACE_ME_PRODUCTION_HOSTNAME/health

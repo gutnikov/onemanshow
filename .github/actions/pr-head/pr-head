@@ -1,0 +1,24 @@
+#!/bin/sh
+# The head commit of the open pull request belonging to a ticket.
+#
+# Separate from the merge so the guards can be evaluated without merging -
+# which is how they get verified, and how a person can ask "would this be
+# allowed" without finding out by doing it.
+set -eu
+
+TICKET="${1:?usage: pr-head <ticket>}"
+
+pr="$(gh pr list --state open --json number,headRefName,headRefOid \
+        -q "[.[] | select(.headRefName | startswith(\"ship/${TICKET}-\"))] | first")"
+if [ -z "$pr" ] || [ "$pr" = null ]; then
+  echo "::error::no open pull request on a branch named ship/${TICKET}-..."
+  exit 1
+fi
+printf '%s' "$pr" | python3 -c '
+import json, os, sys
+pr = json.load(sys.stdin)
+out = os.environ.get("GITHUB_OUTPUT") or "/dev/stdout"
+with open(out, "a") as f:
+    f.write("head=" + pr["headRefOid"] + "\n")
+    f.write("number=" + str(pr["number"]) + "\n")
+print("pull request #" + str(pr["number"]) + ", head " + pr["headRefOid"])'

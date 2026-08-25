@@ -1,0 +1,39 @@
+#!/bin/sh
+# Fast-forwards main to the validated commit, after the guards have held.
+#
+# A fast-forward and nothing else. A merge commit, a squash or a rebase each
+# produce a commit that was never built, which leaves nothing to promote: the
+# image exists for the validated commit and no other, and rebuilding produces a
+# different artifact wearing the same name.
+set -eu
+
+TICKET="${1:?usage: merge-change <ticket>}"
+REPO="${GITHUB_REPOSITORY:?}"
+
+pr="$(gh pr list --state open --json number,headRefName,headRefOid \
+        -q "[.[] | select(.headRefName | startswith(\"ship/${TICKET}-\"))] | first")"
+if [ -z "$pr" ] || [ "$pr" = null ]; then
+  echo "::error::no open pull request found on a branch named ship/${TICKET}-..."
+  exit 1
+fi
+head="$(printf '%s' "$pr" | python3 -c 'import json,sys; print(json.load(sys.stdin)["headRefOid"])')"
+number="$(printf '%s' "$pr" | python3 -c 'import json,sys; print(json.load(sys.stdin)["number"])')"
+echo "pull request #${number}, head ${head}"
+
+git fetch -q origin main
+if git merge-base --is-ancestor "$head" origin/main; then
+  # Two actors reaching the same transition is expected, so the second finds
+  # the work done rather than doing it twice.
+  echo "${head} is already on main - nothing to merge"
+  echo "head=$head" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+  exit 0
+fi
+
+git push origin "${head}:main"
+echo "main fast-forwarded to ${head}"
+echo "head=$head" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+
+gh issue comment "$TICKET" --body "$(printf '%s' "\
+All six guards held, so \`${head}\` is now main's head — by fast-forward, which means the commit that was validated is the commit on main, unchanged. Nothing was rebuilt, and the artifact promoted to production is the one that passed staging.
+
+The release is running. When it finishes, the observation window opens and stays open until it closes on its own — this ticket stays open for the duration, because a change that is released and not yet closed is precisely what "still under observation" means.")"

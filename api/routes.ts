@@ -3,6 +3,7 @@ import { greeting } from '@shared/schema';
 import { flag } from '@shared/env';
 import type { connect } from '../db/client';
 import { checkReadiness } from './readiness';
+import { releaseFromVersion } from './observability';
 
 /**
  * Routes are defined in one chain so that Hono can derive the client type from
@@ -29,10 +30,20 @@ export function createRoutes(connection: ReturnType<typeof connect>) {
       return c.json({ message: row.message });
     })
     .get('/health', async (c) => {
+      // The commit is reported alongside readiness rather than on an endpoint
+      // of its own. Anyone who wants to know what is running also wants to
+      // know whether it is alive, and two endpoints could disagree.
+      //
+      // It is what makes the guard "production and main agree" enforceable. A
+      // deploy log records what was intended; a rollback is exactly when
+      // intent and reality differ, and that is when the question gets asked.
+      // Absent rather than invented when nothing supplied it, so a caller can
+      // tell "never deployed" from "deployed something else".
+      const release = releaseFromVersion(process.env['KAMAL_VERSION']);
       const readiness = await checkReadiness(connection);
       return readiness.ready
-        ? c.json({ ready: true as const }, 200)
-        : c.json({ ready: false as const, reason: readiness.reason }, 503);
+        ? c.json({ ready: true as const, release }, 200)
+        : c.json({ ready: false as const, reason: readiness.reason, release }, 503);
     });
 }
 

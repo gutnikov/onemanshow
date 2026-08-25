@@ -1,0 +1,45 @@
+# ready-to-release -> released, when the guards hold.
+#
+# This is where the six guards can refuse rather than be recited. Before this
+# existed the merge was a person's push, and the guards held for exactly as
+# long as that person read them.
+name: merge
+on:
+  workflow_call:
+    inputs:
+      production_health_url:
+        description: >
+          Production's health endpoint, which reports the commit it runs. Asked
+          directly, because a deploy log records what was intended and a
+          rollback is when intent and reality differ.
+        required: true
+        type: string
+jobs:
+  merge:
+    if: github.event.label.name == 'status:ready-to-release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      statuses: read
+      pull-requests: read
+    steps:
+      # Full history: the guards compare against main and compute the last
+      # deployable commit, neither of which a shallow clone can answer.
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: pr
+        uses: gutnikov/onemanshow/.github/actions/pr-head@main
+        with:
+          ticket: ${{ github.event.issue.number }}
+          token: ${{ github.token }}
+      - uses: gutnikov/onemanshow/.github/actions/merge-guards@main
+        with:
+          ticket: ${{ github.event.issue.number }}
+          sha: ${{ steps.pr.outputs.head }}
+          production_health_url: ${{ inputs.production_health_url }}
+          token: ${{ github.token }}
+      - uses: gutnikov/onemanshow/.github/actions/merge-change@main
+        with:
+          ticket: ${{ github.event.issue.number }}
+          token: ${{ github.token }}

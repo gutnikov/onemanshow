@@ -67,5 +67,16 @@ a clock.
 Pipeline workflows and a scheduled one; the skill's `reference/gates.md`,
 `playbooks/04-ready-for-dev.md`, `07-approve.md`, `09-stabilize.md` and
 `templates/` — the wake messages are prompts, so their wording is versioned with
-the playbooks. No application code. No new hosted service, which is the point:
-the reactive layer must not add to a ten-euro monthly bill.
+the playbooks. No new hosted service, which is the point: the reactive layer
+must not add to a ten-euro monthly bill.
+
+**Amended during implementation: two lines of application code after all.** The
+guard that production and the main branch agree cannot be enforced without
+asking production what it is running, and every other source answers a
+different question — a deploy log and a workflow run record what was
+*intended*, while a rollback is exactly the case where intent and reality
+differ. The alternative was a shell connection to the machine from inside the
+guard, which would hand a guard the credentials that can deploy in order to
+learn a fact the artifact knows about itself. So `/health` now reports the
+commit it was deployed as. Recorded here rather than absorbed silently, because
+"no application code" was this proposal's own claim.
