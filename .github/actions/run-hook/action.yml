@@ -1,0 +1,19 @@
+name: run hook
+description: >
+  Runs one of the project's application hooks, or applies its documented
+  degradation when the hook is absent.
+
+  This is a composite action rather than a script in the caller's repository for
+  a specific reason: a reusable workflow runs in the caller's checkout and can
+  only invoke files that already exist there, so a script added upstream is
+  simply missing in every project created earlier. A composite action carries
+  its own files, so improvements arrive by reference like the YAML does.
+inputs:
+  name:
+    description: check, build, migrate, seed, e2e or smoke
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: sh
+      run: '"${{ github.action_path }}/hook" "${{ inputs.name }}"'

@@ -1,0 +1,17 @@
+name: reset staging
+description: >
+  Destroys the staging data plane on the machine and starts an empty database in
+  its place. The guard that refuses a non-staging target travels with this action,
+  so it cannot be missing from a project that was created before it existed.
+inputs:
+  host: { description: Machine to act on, required: true }
+  volume: { description: Staging volume name, required: true }
+  container: { description: Staging database container name, required: true }
+runs:
+  using: composite
+  steps:
+    - shell: sh
+      run: >-
+        ssh -o StrictHostKeyChecking=no "root@${{ inputs.host }}" 'sh -s'
+        < "${{ github.action_path }}/reset-staging"
+        "${{ inputs.volume }}" "${{ inputs.container }}"

@@ -31,7 +31,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
 
       - name: check
-        run: .github/scripts/hook check
+        uses: gutnikov/onemanshow/.github/actions/run-hook@main
+        with: { name: check }
 
       - name: install sops
         run: |
@@ -52,10 +53,25 @@ jobs:
           docker buildx build --platform linux/amd64 \
             -t "${{ inputs.image }}:${SHA}" --push .
 
-      - name: publish destination-labelled derivatives
-        run: |
-          .github/scripts/label-image "${{ inputs.image }}" "$SHA" "${{ inputs.service }}" production
-          .github/scripts/label-image "${{ inputs.image }}" "$SHA" "${{ inputs.staging_service }}" staging
+      - name: label for production
+        uses: gutnikov/onemanshow/.github/actions/label-image@main
+        with:
+          image: ${{ inputs.image }}
+          sha: ${{ env.SHA }}
+          service: ${{ inputs.service }}
+          destination: production
+
+      - name: label for staging
+        uses: gutnikov/onemanshow/.github/actions/label-image@main
+        with:
+          image: ${{ inputs.image }}
+          sha: ${{ env.SHA }}
+          service: ${{ inputs.staging_service }}
+          destination: staging
 
       - name: the derivatives must be the artifact that was built
-        run: .github/scripts/verify-layers "${{ inputs.image }}" "$SHA" "${SHA}-production" "${SHA}-staging"
+        uses: gutnikov/onemanshow/.github/actions/verify-layers@main
+        with:
+          image: ${{ inputs.image }}
+          base: ${{ env.SHA }}
+          tags: ${{ env.SHA }}-production ${{ env.SHA }}-staging

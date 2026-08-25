@@ -1,0 +1,16 @@
+name: verify layers
+description: >
+  Checks that destination-labelled derivatives are the artifact that was built.
+  This is the promotion invariant: it cannot be a digest comparison, because a
+  derivative must differ in metadata, so it compares the layers that actually run.
+inputs:
+  image: { description: Registry path, required: true }
+  base: { description: Tag of the built image, required: true }
+  tags: { description: Space-separated derivative tags to check, required: true }
+runs:
+  using: composite
+  steps:
+    - shell: sh
+      run: >-
+        "${{ github.action_path }}/verify-layers"
+        "${{ inputs.image }}" "${{ inputs.base }}" ${{ inputs.tags }}
