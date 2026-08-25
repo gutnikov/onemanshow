@@ -1,0 +1,43 @@
+#!/bin/sh
+# The record that a specific commit passed staging validation.
+#
+# Written here and read here, in one file, because the context name is the
+# whole mechanism: a guard that reads a different name than the validation
+# wrote finds nothing and either refuses everything or - worse, if it treats
+# absent as fine - refuses nothing.
+#
+# It exists because a validation run cannot be asked which commit it validated.
+# A dispatched run reports the branch it was dispatched from, so the run's own
+# commit is evidence about nothing. This records the sha that was handed in.
+set -eu
+
+CONTEXT="ship/staging-validated"
+MODE="${1:?usage: validation-mark <set|check> <sha>}"
+SHA="${2:?}"
+REPO="${GITHUB_REPOSITORY:?}"
+
+case "$MODE" in
+  set)
+    gh api "repos/${REPO}/statuses/${SHA}" -X POST \
+      -f state=success -f context="$CONTEXT" \
+      -f description="passed both staging runs" \
+      ${TARGET_URL:+-f target_url="$TARGET_URL"} >/dev/null
+    echo "recorded ${CONTEXT}=success on ${SHA}"
+    ;;
+  check)
+    state="$(gh api "repos/${REPO}/commits/${SHA}/statuses" \
+               -q "[.[] | select(.context == \"${CONTEXT}\")] | .[0].state" 2>/dev/null || true)"
+    if [ "$state" = success ]; then
+      echo "  ${SHA} carries ${CONTEXT}=success"
+      exit 0
+    fi
+    # Absent is not a pass. This is the one place where reading silence as
+    # health would let an unvalidated commit reach production.
+    echo "  ${SHA} carries no ${CONTEXT} record (found '${state:-nothing}')"
+    exit 1
+    ;;
+  *)
+    echo "::error::mode must be set or check, got '${MODE}'"
+    exit 1
+    ;;
+esac

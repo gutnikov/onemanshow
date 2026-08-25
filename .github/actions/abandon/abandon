@@ -1,0 +1,32 @@
+#!/bin/sh
+# A pull request closed without merging means the idea was dropped.
+#
+# Closing as not planned is reserved for a person, and this does not breach
+# that: the person already made the decision by closing the pull request. This
+# reflects it into the ticket, which is bookkeeping, not judgment. The
+# distinction matters - if automation could decide to abandon a change, the
+# reservation would be decoration.
+set -eu
+
+TICKET="${1:?usage: abandon <ticket>}"
+STATUS="${TICKET_STATUS:-}"
+PR="${PR_NUMBER:-}"
+
+case "$STATUS" in
+  released|ready-to-release)
+    # The change shipped. A closed pull request afterwards is tidying, not
+    # abandonment, and closing the ticket as not planned would misrecord it.
+    echo "ticket #${TICKET} is in '${STATUS}' - the change shipped, so a closed pull request is not abandonment"
+    exit 0
+    ;;
+esac
+
+gh issue comment "$TICKET" --body "$(printf '%s' "\
+Pull request #${PR} was closed without merging, so this is recorded as **not planned**.
+
+The change lived only on that branch, so there is nothing left behind — no archived proposal, no litter in main. That was the reason for keeping it there.
+
+Reopen the ticket if the idea comes back; it starts again at \`draft\`.")"
+gh issue close "$TICKET" --reason "not planned"
+gh issue edit "$TICKET" --remove-label "status:${STATUS}" 2>/dev/null || true
+echo "ticket #${TICKET} closed as not planned, status label removed"

@@ -1,0 +1,26 @@
+name: promote to staging
+description: >
+  Moves a change from dev to staging and starts the staging validation, when
+  checks and the build have passed. Acts only on a ticket in dev, which is what
+  makes a repeated push a no-op rather than a second validation.
+inputs:
+  ticket: { description: Ticket number, required: true }
+  sha: { description: Full 40-character commit that passed, required: true }
+  status: { description: The ticket's current status label, required: true }
+  staging_workflow:
+    description: Filename of the instance workflow that runs the staging validation.
+    required: false
+    default: on-staging.yml
+  token: { description: Token able to edit issues and dispatch workflows, required: true }
+runs:
+  using: composite
+  steps:
+    - shell: sh
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        TICKET_STATUS: ${{ inputs.status }}
+        STAGING_WORKFLOW: ${{ inputs.staging_workflow }}
+        TICKET: ${{ inputs.ticket }}
+        SHA: ${{ inputs.sha }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: '"$ACTION_PATH/promote-to-staging" "$TICKET" "$SHA"'

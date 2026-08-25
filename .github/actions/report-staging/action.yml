@@ -1,0 +1,26 @@
+name: report staging
+description: >
+  Writes the validation's outcome into the ticket thread, asking for approval on
+  green and describing the failure on red. Never invokes the agent - a mention
+  authored by an application is not answered, so this records and notifies, and
+  one word from a person brings the agent in with the thread as context.
+inputs:
+  ticket: { description: Ticket number, required: true }
+  sha: { description: Commit that was validated, required: true }
+  outcome: { description: success, or anything else for failure, required: true }
+  stand_url: { description: Address of the stand, which is the whole artifact of this handover, required: true }
+  run_url: { description: Link to the run, so the detail is one click away, required: false, default: "" }
+  token: { description: Token able to comment on issues, required: true }
+runs:
+  using: composite
+  steps:
+    - shell: sh
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        STAND_URL: ${{ inputs.stand_url }}
+        RUN_URL: ${{ inputs.run_url }}
+        TICKET: ${{ inputs.ticket }}
+        SHA: ${{ inputs.sha }}
+        OUTCOME: ${{ inputs.outcome }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: '"$ACTION_PATH/report-staging" "$TICKET" "$SHA" "$OUTCOME"'

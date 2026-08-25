@@ -1,0 +1,20 @@
+name: abandon
+description: >
+  Records a pull request closed without merging as an abandoned change. The
+  person decided by closing the pull request; this reflects it into the ticket.
+inputs:
+  ticket: { description: Ticket number, required: true }
+  status: { description: The ticket's current status label, required: true }
+  pr: { description: Pull request number, for the record, required: true }
+  token: { description: Token able to edit and close issues, required: true }
+runs:
+  using: composite
+  steps:
+    - shell: sh
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        TICKET_STATUS: ${{ inputs.status }}
+        PR_NUMBER: ${{ inputs.pr }}
+        TICKET: ${{ inputs.ticket }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: '"$ACTION_PATH/abandon" "$TICKET"'

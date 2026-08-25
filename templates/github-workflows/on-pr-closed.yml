@@ -1,0 +1,9 @@
+# Instance wiring: no placeholders in this one. See this directory's README.
+name: on pull request closed
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+jobs:
+  abandon:
+    uses: gutnikov/onemanshow/.github/workflows/abandon.yml@main

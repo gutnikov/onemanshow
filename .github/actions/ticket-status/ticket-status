@@ -1,0 +1,47 @@
+#!/bin/sh
+# Resolves the ticket a branch belongs to, and reports its status label.
+#
+# The branch name is the single source: playbooks/02-draft.md says to name the
+# branch after the ticket, and a pull request body is prose that drifts. If the
+# name does not carry a ticket, that is said out loud rather than guessed at -
+# a wrong ticket number moves the wrong change.
+set -eu
+
+BRANCH="${1:-}"
+SHA="${2:-}"
+
+# A dispatched workflow knows a commit and not a branch, so the commit's pull
+# request supplies one. Resolved here rather than in each caller so that
+# "which ticket does this belong to" has one answer and one failure message.
+if [ -z "$BRANCH" ]; then
+  if [ -z "$SHA" ]; then
+    echo "::error::give a branch or a commit"
+    exit 1
+  fi
+  BRANCH="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}/pulls" \
+              -q '.[0].head.ref' 2>/dev/null || true)"
+  if [ -z "$BRANCH" ] || [ "$BRANCH" = null ]; then
+    echo "::error::no pull request found for ${SHA}, so its ticket cannot be resolved"
+    exit 1
+  fi
+  echo "commit ${SHA} belongs to branch ${BRANCH}"
+fi
+
+number="$(printf '%s\n' "$BRANCH" | sed -n 's|^ship/\([0-9][0-9]*\)-.*$|\1|p')"
+if [ -z "$number" ]; then
+  echo "::error::branch '${BRANCH}' does not name a ticket - expected ship/<number>-<slug>"
+  exit 1
+fi
+
+if ! labels="$(gh issue view "$number" --json labels,state -q '"\(.state) \([.labels[].name] | join(","))"' 2>&1)"; then
+  echo "::error::ticket #${number} could not be read: ${labels}"
+  exit 1
+fi
+
+state="${labels%% *}"
+status="$(printf '%s\n' "$labels" | tr ',' '\n' | sed -n 's/^status://p' | head -1)"
+
+echo "ticket=$number" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+echo "state=$state" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+echo "status=$status" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+echo "ticket #${number} is ${state}, status='${status:-none}'"

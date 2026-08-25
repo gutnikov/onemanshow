@@ -1,0 +1,30 @@
+name: ticket status
+description: >
+  Resolves the ticket a branch belongs to from the branch name and reports its
+  status label, so a workflow can decide whether a transition applies. Fails
+  loudly on a branch that names no ticket rather than guessing one.
+inputs:
+  branch:
+    description: Branch name, expected to be ship/<ticket>-<slug>. Give this or a commit.
+    required: false
+    default: ""
+  sha:
+    description: Commit whose pull request names the branch. Used when only a commit is known, as in a dispatched validation.
+    required: false
+    default: ""
+  token: { description: Token able to read pull requests and issues, required: true }
+outputs:
+  ticket: { description: Ticket number, value: "${{ steps.read.outputs.ticket }}" }
+  state: { description: OPEN or CLOSED, value: "${{ steps.read.outputs.state }}" }
+  status: { description: The status label without its prefix, empty if none, value: "${{ steps.read.outputs.status }}" }
+runs:
+  using: composite
+  steps:
+    - id: read
+      shell: sh
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        BRANCH: ${{ inputs.branch }}
+        SHA: ${{ inputs.sha }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: '"$ACTION_PATH/ticket-status" "$BRANCH" "$SHA"'

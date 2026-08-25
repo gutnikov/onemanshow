@@ -1,0 +1,25 @@
+# A closed, unmerged pull request means the change was dropped. The ticket has
+# to follow, or the queue fills with changes whose work has already been thrown
+# away and nothing distinguishes them from work waiting to start.
+name: abandon
+on:
+  workflow_call:
+    secrets: {}
+jobs:
+  abandon:
+    if: github.event.pull_request.merged == false
+    runs-on: ubuntu-latest
+    permissions: { issues: write, contents: read, pull-requests: read }
+    steps:
+      - uses: actions/checkout@v4
+      - id: ticket
+        uses: gutnikov/onemanshow/.github/actions/ticket-status@main
+        with:
+          branch: ${{ github.event.pull_request.head.ref }}
+          token: ${{ github.token }}
+      - uses: gutnikov/onemanshow/.github/actions/abandon@main
+        with:
+          ticket: ${{ steps.ticket.outputs.ticket }}
+          status: ${{ steps.ticket.outputs.status }}
+          pr: ${{ github.event.pull_request.number }}
+          token: ${{ github.token }}

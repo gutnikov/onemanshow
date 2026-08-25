@@ -1,0 +1,48 @@
+#!/bin/sh
+# Records the validation's outcome in the thread, and asks for approval on green.
+#
+# Everything written here is read by the agent as context when a person next
+# brings it in, so it is written for someone arriving cold. It never invokes
+# the agent: a mention authored by an app is not answered, measured, and the
+# fallback of posting as the person would make the thread stop attributing
+# decisions - which is the only thing it is good for.
+set -eu
+
+TICKET="${1:?usage: report-staging <ticket> <sha> <outcome>}"
+SHA="${2:?}"
+OUTCOME="${3:?}"
+STAND="${STAND_URL:?}"
+RUN="${RUN_URL:-}"
+
+case "$OUTCOME" in
+  success)
+    gh issue comment "$TICKET" --body "$(printf '%s' "\
+## Validated on the stand — your approval is the next move
+
+**${STAND}**
+
+Both runs passed on \`${SHA}\`: migration safety against production's schema and data with this change's migration on top, then the full suite against fixtures seeded at this commit. The two are separate because one run cannot answer both questions, and asserting on content in the first fails every change that touches fixtures.
+
+**What to do:** open the stand and check the thing this change was for. Not whether the tests pass — that is settled. Whether what you asked for is what is there.
+
+A green deploy means the container became healthy, and a green suite means the assertions held. Neither means the change is what you wanted.
+
+Run: ${RUN}
+
+Approve and I take it to production. Reject and it goes back to \`dev\` with your words as you wrote them.")"
+    echo "reported green and asked for approval on #${TICKET}"
+    ;;
+  *)
+    gh issue comment "$TICKET" --body "$(printf '%s' "\
+## Staging validation failed on \`${SHA}\`
+
+Run: ${RUN}
+
+The status is left at \`staging\` deliberately. A red run is a flake, a broken test, or a real bug, and the three go to different places — a flake is retried once, a broken test is fixed inside this change, and a real bug goes back to \`dev\`. Choosing between them is judgment, and nothing here is going to guess at it.
+
+The stand is still at ${STAND} if it is up.
+
+Say the word and I will read the run and decide.")"
+    echo "reported red on #${TICKET}, status left at staging for a person to arrive"
+    ;;
+esac

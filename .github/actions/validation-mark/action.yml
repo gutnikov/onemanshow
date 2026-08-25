@@ -1,0 +1,22 @@
+name: validation mark
+description: >
+  Writes and reads the record that a specific commit passed staging validation.
+  Both directions live in one file so the record's name has a single
+  definition - a guard reading a different name than the validation wrote finds
+  nothing, and finding nothing must never be read as a pass.
+inputs:
+  mode: { description: set after a successful validation, check before merging, required: true }
+  sha: { description: The commit that was validated, required: true }
+  target_url: { description: Link to the validation run, recorded with the mark, required: false, default: "" }
+  token: { description: Token able to write and read commit statuses, required: true }
+runs:
+  using: composite
+  steps:
+    - shell: sh
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        TARGET_URL: ${{ inputs.target_url }}
+        MODE: ${{ inputs.mode }}
+        SHA: ${{ inputs.sha }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: '"$ACTION_PATH/validation-mark" "$MODE" "$SHA"'

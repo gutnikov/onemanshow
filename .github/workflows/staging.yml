@@ -33,6 +33,11 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      statuses: write
+      pull-requests: read
+      contents: read
     env:
       SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
       SHIP_IMAGE: ${{ inputs.image }}
@@ -204,3 +209,36 @@ jobs:
         env: { SHIP_URL: "https://${{ inputs.staging_domain }}" }
         uses: gutnikov/onemanshow/.github/actions/run-hook@main
         with: { name: e2e }
+
+      # The record that THIS commit passed, written only after both runs. A
+      # dispatched run cannot be asked what it validated - it reports the branch
+      # it was dispatched from - so without this the merge guard has no evidence
+      # about the change and would have to trust a run's own commit, which is
+      # evidence about something else.
+      - name: record that this commit passed validation
+        uses: gutnikov/onemanshow/.github/actions/validation-mark@main
+        with:
+          mode: set
+          sha: ${{ inputs.sha }}
+          target_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          token: ${{ github.token }}
+
+      # always(): the red path is the one that most needs to reach a person, and
+      # a report that only happens on success is a report that says nothing when
+      # it matters.
+      - id: ticket
+        if: always()
+        uses: gutnikov/onemanshow/.github/actions/ticket-status@main
+        with:
+          sha: ${{ inputs.sha }}
+          token: ${{ github.token }}
+      - name: record the outcome in the thread
+        if: always() && steps.ticket.outputs.ticket != ''
+        uses: gutnikov/onemanshow/.github/actions/report-staging@main
+        with:
+          ticket: ${{ steps.ticket.outputs.ticket }}
+          sha: ${{ inputs.sha }}
+          outcome: ${{ job.status }}
+          stand_url: https://${{ inputs.staging_domain }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          token: ${{ github.token }}

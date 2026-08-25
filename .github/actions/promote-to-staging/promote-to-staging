@@ -1,0 +1,38 @@
+#!/bin/sh
+# dev -> staging, when checks and the build have passed on this commit.
+#
+# Acts only on a ticket in `dev`. That single condition is what makes repeated
+# pushes safe: the first one moves the ticket, so the second finds it in
+# `staging` and does nothing. State derived from the tools does the work that
+# a lock would otherwise have to, and two actors racing reach the same end.
+set -eu
+
+TICKET="${1:?usage: promote-to-staging <ticket> <sha>}"
+SHA="${2:?}"
+STATUS="${TICKET_STATUS:-}"
+WORKFLOW="${STAGING_WORKFLOW:-on-staging.yml}"
+
+if [ "$STATUS" != dev ]; then
+  echo "ticket #${TICKET} is in '${STATUS:-none}', not dev - nothing to promote"
+  echo "  (a push to a change already in staging does not revalidate it; a new"
+  echo "   commit on an approved change is a rejection, and a person carries that)"
+  exit 0
+fi
+
+case "$SHA" in
+  ????????????????????????????????????????) : ;;
+  *) echo "::error::sha must be a full 40-character commit, got '${SHA}'"; exit 1 ;;
+esac
+
+gh issue edit "$TICKET" --remove-label status:dev --add-label status:staging
+echo "ticket #${TICKET}: dev -> staging"
+
+# Dispatched rather than called: the staging validation needs the machine's
+# address and host key, which this workflow has no reason to know.
+gh workflow run "$WORKFLOW" -f sha="$SHA"
+echo "staging validation dispatched for ${SHA}"
+
+gh issue comment "$TICKET" --body "$(printf '%s' "\
+Checks and the build passed on \`${SHA}\`. Moved to \`staging\` and started the validation — two runs: migration safety against production's data, then the full suite against fixtures seeded at this commit.
+
+Nobody asked for this; it is the transition the lifecycle assigns to automation. The next thing that needs a person is approval, and it will be asked for here with the stand's address.")"

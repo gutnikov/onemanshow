@@ -15,6 +15,11 @@ on:
         type: string
       service: { description: Service name of the production destination, required: true, type: string }
       staging_service: { required: true, type: string }
+      staging_workflow:
+        description: Filename of the instance workflow that runs the staging validation, dispatched once checks and the build pass.
+        required: false
+        type: string
+        default: on-staging.yml
       registry_user: { description: Registry account name (not a secret), required: true, type: string }
     secrets:
       # Named to match what a project actually holds, so a stub can use
@@ -24,11 +29,17 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
     env:
       SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
       SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
+      # The commit under review, published so the next job promotes the thing
+      # that was validated rather than whatever the branch points at by then.
+      - id: commit
+        run: echo "sha=$SHA" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
@@ -78,3 +89,27 @@ jobs:
           image: ${{ inputs.image }}
           base: ${{ env.SHA }}
           tags: ${{ env.SHA }}-production ${{ env.SHA }}-staging
+
+  # dev -> staging. The lifecycle assigns this to automation, and until now a
+  # person carried it: they read a green run and then asked for the next step.
+  promote:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - id: ticket
+        uses: gutnikov/onemanshow/.github/actions/ticket-status@main
+        with:
+          branch: "${{ github.event.pull_request.head.ref }}"
+          token: ${{ github.token }}
+      - uses: gutnikov/onemanshow/.github/actions/promote-to-staging@main
+        with:
+          ticket: ${{ steps.ticket.outputs.ticket }}
+          status: ${{ steps.ticket.outputs.status }}
+          sha: ${{ needs.validate.outputs.sha }}
+          staging_workflow: ${{ inputs.staging_workflow }}
+          token: ${{ github.token }}
