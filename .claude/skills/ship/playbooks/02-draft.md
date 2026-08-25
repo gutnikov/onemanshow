@@ -12,6 +12,16 @@ cannot examine a sentence.
 3. **Commit the proposal as the first commit.** Grill then happens in a
    reviewable diff, and the person can see how the framing changed rather than
    reconstructing it from the conversation.
+4. **Complete the change's planning artifacts** — the plan is what the person
+   approves at the gate, and `dev` opens by working through the task list. A
+   proposal alone leaves the next stage nothing to execute.
+
+Size the artifacts to the change, and let each one's own instructions tell you
+when it is not warranted. A change that moves one constant marks *no spec
+delta* rather than writing one that restates an unchanged contract, and skips
+the design document its instructions call conditional. Producing every artifact
+at full length for a one-line change is not thoroughness — it buries the thing
+the person has to read.
 
 The change lives only on the branch. That matters at the other end: if the idea
 is abandoned, closing the pull request removes it entirely — nothing to archive,

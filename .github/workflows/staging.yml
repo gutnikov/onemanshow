@@ -42,8 +42,34 @@ jobs:
       SHIP_REGISTRY_USER: ${{ inputs.registry_user }}
       SHIP_SSH_LOG_LEVEL: debug
     steps:
+      # A 40-hex commit, checked before anything acts on it. Passing an
+      # abbreviated one got as far as the deploy and failed there as an image
+      # "not found", which reads like a build problem rather than a bad
+      # argument. fetch-depth 0 is needed for the baseline worktree below.
+      - name: the sha must be a full commit
+        run: |
+          case "${{ inputs.sha }}" in
+            *[!0-9a-f]* | "") bad=1 ;;
+            ????????????????????????????????????????) bad= ;;
+            *) bad=1 ;;
+          esac
+          if [ -n "$bad" ]; then
+            echo "::error::sha must be a full 40-character commit, got '${{ inputs.sha }}'"
+            exit 1
+          fi
+
+      # Pinned to the commit under review. Left unpinned this resolves to the
+      # branch the dispatch ran on - main - and then every step below labelled
+      # "at the commit under review" silently used main's code: main's
+      # migrations, main's seed, main's tests. A change that moved a fixture
+      # was validated by seeding main's value and asserting main's constant,
+      # which agree, so the run was green and proved nothing. The baseline
+      # worktree was explicit about its ref and was the only step that was
+      # actually on the commit it claimed.
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          ref: ${{ inputs.sha }}
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
@@ -79,24 +105,10 @@ jobs:
 
       # Production's version tag carries a destination suffix; the commit is
       # what the baseline needs, so the suffix is stripped.
-      # Production's version tag carries a destination suffix; the commit is
-      # what the baseline needs, so the suffix is stripped.
       #
       # Piping this into tail once turned a failed container run into an empty
       # string and a green step - a silently wrong baseline is worse than a
       # broken one, so the result is now validated as a commit before use.
-      # Diagnostic: what the container actually sees. Six attempts at this step
-      # failed on a host key that was demonstrably pinned, so the question is
-      # whether the file reaches Net::SSH at all.
-      - name: what ssh material reaches the container
-        run: |
-          docker run --rm -v "$HOME/.ssh:/root/.ssh:ro" --entrypoint sh \
-            ghcr.io/basecamp/kamal:v2.12.0 -c '
-              echo "HOME=$HOME"; ls -la /root/.ssh
-              echo "--- config ---"; cat /root/.ssh/config 2>&1
-              echo "--- known_hosts (first field of each line) ---"
-              awk "{print \$1, \$2}" /root/.ssh/known_hosts 2>&1'
-
       - name: read the commit production is running
         id: prod
         run: |

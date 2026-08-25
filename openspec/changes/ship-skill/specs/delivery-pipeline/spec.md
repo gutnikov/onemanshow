@@ -20,3 +20,16 @@ The change's own migration SHALL then be applied **before** the image that requi
 #### Scenario: The order is the same in both environments
 - **WHEN** a change is released to production
 - **THEN** the migration precedes the deploy there too, because two stages of one pipeline disagreeing about the order is a defect only a non-backward-compatible migration would reveal
+
+### Requirement: Validating a change on staging answers two questions
+Validating a change on staging SHALL answer two questions in two runs, because one run cannot answer both. Against the baseline derived from production — production's schema and production's data with the change's migration applied on top — the pipeline SHALL run only the content-agnostic smoke set, because the data present is deliberately not the data the change's fixtures describe. It SHALL then reset, seed at the change's own commit, and run the full end-to-end suite.
+
+Every step described as being at the change's commit SHALL execute code checked out at that commit. Resolving it to the default branch instead makes the second run self-consistent rather than correct: the seed writes the default branch's fixture and the suite asserts the default branch's expectation, the two agree, and the run is green while the change under review was never exercised.
+
+#### Scenario: Fixtures differ from production's data
+- **WHEN** a change alters what `ship/seed` writes
+- **THEN** the migration-safety run uses the smoke set and passes even though the data present differs from the change's fixtures, and the end-to-end suite afterwards runs against data seeded at the change's own commit
+
+#### Scenario: A change that moves a fixture is actually exercised
+- **WHEN** a change alters both the value `ship/seed` writes and the expectation the suite asserts
+- **THEN** the stand serves the change's new value, so a pipeline that ran the default branch's code for both would report green without the change having been validated, and that arrangement SHALL fail instead

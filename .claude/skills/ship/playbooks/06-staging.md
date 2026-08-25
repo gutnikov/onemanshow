@@ -24,6 +24,14 @@ against.
 Asserting on content in run one fails every change that touches fixtures,
 through no fault of its own. That mistake was made here once already.
 
+**Both runs must be running the change's code.** If the pipeline resolves "the
+change's commit" to the default branch, run two seeds that branch's fixture and
+asserts that branch's expectation — the two agree, the run is green, and the
+change was never exercised. That mistake was also made here, and it is the
+harder one to notice, because nothing is red. Before trusting a green run on a
+change that touches fixtures, look at the stand and confirm it serves the new
+value. A green suite and a stand showing the old value cannot both be right.
+
 ## When the end-to-end run is red
 
 The pipeline reports all three of these identically. Deciding between them is

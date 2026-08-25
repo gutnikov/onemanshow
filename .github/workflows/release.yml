@@ -37,8 +37,14 @@ jobs:
       SHIP_DOMAIN: ${{ inputs.domain }}
       SHIP_REGISTRY_USER: ${{ inputs.registry_user }}
     steps:
+      # Pinned rather than left to default. Triggered from a push to main the
+      # default already resolves here, so this changes nothing today - it stops
+      # the correctness from depending on which event happened to start the run,
+      # which is how the same omission in staging.yml went unnoticed.
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          ref: ${{ inputs.sha }}
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
