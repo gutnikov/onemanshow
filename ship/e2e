@@ -1,5 +1,11 @@
 #!/bin/sh
 # Runs against the environment named by SHIP_URL, never a hardcoded address.
+#
+# The hook installs its own browser. That belongs here rather than in the
+# pipeline: the moment a workflow runs "playwright install" it has learned what
+# this project is written with, and the whole point of these hooks is that it
+# does not need to know.
 set -eu
 : "${SHIP_URL:?SHIP_URL is not set}"
+npx playwright install --with-deps chromium
 npx playwright test
