@@ -2,8 +2,6 @@ name: kamal
 description: >
   Runs Kamal from its published container image, so no Ruby is needed on the
   runner and the version is pinned rather than whatever :latest happens to be.
-  Configuration reaches it through the environment the job has already set up -
-  a composite action cannot take secrets, and does not need to.
 inputs:
   args:
     description: Arguments passed to kamal, for example "deploy --skip-push --version x -d staging"
@@ -11,20 +9,47 @@ inputs:
 runs:
   using: composite
   steps:
-    # Inputs travel through env, never through ${{ }} inside the script. An
-    # interpolated input becomes part of the script text, so anything that can
-    # influence it can run commands as this job; passed as an environment
-    # variable it stays data. ARGS is deliberately unquoted because it is a
-    # command line and must word-split, but as a variable it cannot introduce
-    # command substitution.
+    # Inputs travel through env, never through ${{ }} inside the script: an
+    # interpolated input becomes part of the script text, so anything able to
+    # influence it could run commands as this job.
+    #
+    # The list of secrets to forward is derived from .kamal/secrets rather than
+    # written here. It used to be a hand-kept list, and a secret missing from it
+    # was resolved as an empty value rather than an error - so error reporting
+    # was silently off in production while every file said it was configured.
+    # One declaration is enough now.
     - shell: sh
       env:
         ARGS: ${{ inputs.args }}
       run: |
+        set -eu
+        forward=""
+        for f in .kamal/secrets-common .kamal/secrets; do
+          [ -f "$f" ] || continue
+          names="$(sed -n 's/^\([A-Z_][A-Z0-9_]*\)=.*/\1/p' "$f")"
+          for n in $names; do
+            case " $forward " in *" -e $n "*) continue ;; esac
+            forward="$forward -e $n"
+          done
+        done
+        echo "forwarding to kamal:$forward"
+
+        # Any secret named in the file must actually have a value, or Kamal
+        # writes an empty one and everything downstream looks configured.
+        missing=""
+        for n in $(printf '%s' "$forward" | tr ' ' '\n' | grep -v '^-e$' | grep -v '^$'); do
+          eval "v=\${$n:-}"
+          [ -n "$v" ] || missing="$missing $n"
+        done
+        if [ -n "$missing" ]; then
+          echo "::error::These secrets are declared for the deploy tool but empty in this job:$missing"
+          exit 1
+        fi
+
         docker run --rm \
           -v "$PWD:/workdir" \
           -v "$HOME/.ssh:/root/.ssh:ro" \
           -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_STAGING_DOMAIN \
-          -e SHIP_REGISTRY_USER -e KAMAL_REGISTRY_PASSWORD \
-          -e DATABASE_URL -e POSTGRES_PASSWORD \
+          -e SHIP_REGISTRY_USER -e SHIP_BREAK_GREETING \
+          $forward \
           ghcr.io/basecamp/kamal:v2.12.0 $ARGS
