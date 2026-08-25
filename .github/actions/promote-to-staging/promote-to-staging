@@ -12,8 +12,17 @@ SHA="${2:?}"
 STATUS="${TICKET_STATUS:-}"
 WORKFLOW="${STAGING_WORKFLOW:-on-staging.yml}"
 
+# An empty status is not a state, it is a broken ticket. Treating it as "some
+# other status, nothing to do" is how this job reported success while doing
+# nothing at all: the status had failed to parse, and silence read as a
+# legitimate no-op.
+if [ -z "$STATUS" ]; then
+  echo "::error::ticket #${TICKET} carries no status label, so it is not in the lifecycle - a change with a pull request must have one"
+  exit 1
+fi
+
 if [ "$STATUS" != dev ]; then
-  echo "ticket #${TICKET} is in '${STATUS:-none}', not dev - nothing to promote"
+  echo "ticket #${TICKET} is in '${STATUS}', not dev - nothing to promote"
   echo "  (a push to a change already in staging does not revalidate it; a new"
   echo "   commit on an approved change is a rejection, and a person carries that)"
   exit 0

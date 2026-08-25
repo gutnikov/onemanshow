@@ -33,13 +33,16 @@ if [ -z "$number" ]; then
   exit 1
 fi
 
-if ! labels="$(gh issue view "$number" --json labels,state -q '"\(.state) \([.labels[].name] | join(","))"' 2>&1)"; then
-  echo "::error::ticket #${number} could not be read: ${labels}"
+# Read as separate queries. Joining them into one line and splitting it here
+# is what produced an empty status once: the label list was prefixed with the
+# state, so a pattern anchored to the start of the line matched nothing, and
+# the caller then decided there was no transition to make and said so quietly.
+if ! state="$(gh issue view "$number" --json state -q .state 2>&1)"; then
+  echo "::error::ticket #${number} could not be read: ${state}"
   exit 1
 fi
-
-state="${labels%% *}"
-status="$(printf '%s\n' "$labels" | tr ',' '\n' | sed -n 's/^status://p' | head -1)"
+status="$(gh issue view "$number" --json labels \
+            -q '[.labels[].name | select(startswith("status:")) | sub("^status:"; "")] | first // ""')"
 
 echo "ticket=$number" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 echo "state=$state" >> "${GITHUB_OUTPUT:-/dev/stdout}"
