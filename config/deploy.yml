@@ -19,6 +19,10 @@ ssh:
   keys_only: true
   keys:
     - /root/.ssh/id_ed25519
+  # Net::SSH ignores the OpenSSH client config unless told to read it, which is
+  # why a pinned known_hosts had no effect and it reported HostKeyUnknown for
+  # the very key that was pinned.
+  config: true
 
 proxy:
   ssl: true
