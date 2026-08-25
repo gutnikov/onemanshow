@@ -17,3 +17,9 @@ playwright-report/
 
 # Kamal keeps local state here.
 .kamal/
+
+# Kamal state is local; its secrets files hold references, not values, so they
+# are committed on purpose - CI needs them.
+.kamal/*
+!.kamal/secrets
+!.kamal/secrets-common
