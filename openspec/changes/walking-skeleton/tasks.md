@@ -5,7 +5,6 @@ All tasks are performed in this repository or in an external service, except gro
 - [x] 1.1 Make this repository public and mark it as a GitHub template; verify the repository page offers "Use this template"
 - [x] 1.2 Exclude our own openspec change history from what the template ships, keeping the configuration and directory structure; verify a project created from the template carries openspec config and no inherited changes. A template repository copies everything tracked, so a created project does inherit them - confirmed on the testbed, where they were removed by hand. The lasting fix belongs to `init`; until it exists the README makes it the first documented step
 - [x] 1.3 Confirm no real credential exists anywhere in this repository's history, only example files and placeholder recipients; verify by scanning the full history rather than the working tree
-- [ ] 1.4 Wire the skill from a local path for our own iteration instead of relying on the copied files; verify that editing a playbook takes effect without recreating the testbed
 - [x] 1.5 Create the private testbed project through "Use this template" rather than by cloning, so the copy path is itself exercised; verify the resulting project builds before any change is made to it
 
 ## 2. Secrets foundation
