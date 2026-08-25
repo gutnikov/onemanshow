@@ -36,6 +36,11 @@ runs:
                "This needs a person: rolling back again only moves further from main."
           exit 1
         fi
+        # Actions runs sh with -e, and a script whose last executed command is a
+        # false test exits non-zero. Ending on an explicit success keeps a passing
+        # guard from reading as a failure.
+        echo "nothing unresolved; proceeding with one step back"
+        exit 0
 
     - shell: sh
       run: |
