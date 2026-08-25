@@ -3,8 +3,8 @@ All tasks are performed in this repository or in an external service, except gro
 ## 1. Repository and testbed
 
 - [ ] 1.1 Make this repository public and mark it as a GitHub template; verify the repository page offers "Use this template"
-- [ ] 1.2 Exclude our own openspec change history from what the template ships, keeping the configuration and directory structure; verify a project created from the template carries openspec config and no inherited changes
-- [ ] 1.3 Confirm no real credential exists anywhere in this repository's history, only example files and placeholder recipients; verify by scanning the full history rather than the working tree
+- [x] 1.2 Exclude our own openspec change history from what the template ships, keeping the configuration and directory structure; verify a project created from the template carries openspec config and no inherited changes. A template repository copies everything tracked, so a created project does inherit them - confirmed on the testbed, where they were removed by hand. The lasting fix belongs to `init`; until it exists the README makes it the first documented step
+- [x] 1.3 Confirm no real credential exists anywhere in this repository's history, only example files and placeholder recipients; verify by scanning the full history rather than the working tree
 - [ ] 1.4 Wire the skill from a local path for our own iteration instead of relying on the copied files; verify that editing a playbook takes effect without recreating the testbed
 - [x] 1.5 Create the private testbed project through "Use this template" rather than by cloning, so the copy path is itself exercised; verify the resulting project builds before any change is made to it
 
@@ -68,6 +68,10 @@ All tasks are performed in this repository or in an external service, except gro
 - [x] 8.2 Wire error tracking with the release tagged by commit SHA; verify a deliberately raised error appears attributed to the correct release
 - [x] 8.3 Enable spike protection and client-side sampling; verify a burst of identical errors does not consume the monthly quota
 - [x] 8.4 Add a single command answering "has production been healthy since the current release was deployed?" from liveness, new issues in the release, and the smoke result; verify it returns false while the failure switch is enabled and true otherwise
+
+## 8b. Backups
+
+- [ ] 8b.1 Add a scheduled database dump to object storage, with a guard that the dump is non-empty and restorable; verify by restoring one into an empty database and reading a known row back. Recorded now because production currently has no backup at all, and a dump nobody has restored is not a backup
 
 ## 9. Validation (in the testbed)
 

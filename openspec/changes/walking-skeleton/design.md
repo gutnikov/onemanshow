@@ -16,6 +16,7 @@ Two constraints shape every decision below:
 - Leave a reference project that is safe to break deliberately.
 
 **Non-Goals:**
+- Choosing the application platform. Supabase will replace the self-hosted database, driven by wanting its authentication rather than its Postgres, and that is a separate change deliberately taken after this one. The reasoning: a managed database is a swappable dependency, while a managed authentication provider grows into the data model and is very hard to leave - so it is the real point of no return and deserves its own decision rather than arriving as a side effect of a storage choice. It also lands on this pipeline in nameable places, each needing re-verification: the reset must deal with an auth schema it does not own, `ship/seed` stops being SQL and creates users through an API, end-to-end tests need real tokens, and the rule that production smoke must not mutate anything requires a synthetic production user.
 - Any product feature. The reference application stays featureless; the moment it acquires real functionality, breaking it stops being safe and it loses the only property that makes it valuable.
 - Supporting more than one vendor per concern. Every role had exactly one implementation, so an adapter layer would be indirection rather than abstraction.
 - The `ship` skill: statuses, gates, playbooks, grill, automation flows. Those are written after this skeleton has carried three changes.
@@ -148,6 +149,12 @@ Resolved by publishing a thin destination-labelled derivative: same layers, diff
 The cost is stated plainly rather than glossed: the invariant is no longer "the same image digest reaches production" but "the same layers do". The running filesystem is byte-identical, which is what the invariant was protecting, but checking it is now a comparison of layer lists instead of one string.
 
 The alternative was a second machine, which is what Kamal's destination model actually assumes and which would have kept the digest comparison. It was declined in favour of one machine; this is the second bill for that choice, after binding database ports to loopback because Docker bypasses the firewall.
+
+### There are no database backups
+
+Recorded as a hole rather than left implied. Data lives in a bind mount on one machine with no snapshots, so losing the machine loses production's data. The reference application deliberately has no backup, which is fine for a test rig and not fine for a product.
+
+It is also independent of where the database runs: it wants closing whether the database stays here or moves to a managed platform. The cheap closure is a scheduled dump to object storage - a free tier with no egress charges suits it - which fixes the real problem without changing the architecture or spending the platform's monthly fee to get backups as a side effect.
 
 ## Risks / Trade-offs
 
