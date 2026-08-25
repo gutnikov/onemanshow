@@ -1,0 +1,14 @@
+# Instance wiring: no placeholders. See this directory's README.
+#
+# Every ten minutes. The window's own length lives in ship.yml; this only
+# decides how often the question is asked, and asking more often than the
+# window is long is what keeps lateness small.
+name: on schedule
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+jobs:
+  window:
+    uses: gutnikov/onemanshow/.github/workflows/window.yml@main
+    secrets: inherit

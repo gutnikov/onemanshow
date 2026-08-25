@@ -1,0 +1,29 @@
+name: close window
+description: >
+  Closes observation windows that have elapsed and takes up the head of the
+  queue when the segment frees. Derived from the tools on every run rather than
+  held by a process, and it reports even when it finds nothing, so a schedule
+  that has stopped is distinguishable from a quiet one.
+inputs:
+  window_minutes:
+    description: The observation window's length, from the project's configuration
+    required: true
+  release_workflow_name:
+    description: >
+      Display name of the release workflow, whose conclusion for a commit is
+      the post-deploy smoke result.
+    required: false
+    default: on main
+  token:
+    description: Token able to read timelines and close issues
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: sh
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        OBSERVATION_WINDOW_MINUTES: ${{ inputs.window_minutes }}
+        RELEASE_WORKFLOW_NAME: ${{ inputs.release_workflow_name }}
+        ACTION_DIR: ${{ github.action_path }}
+      run: '"$ACTION_DIR/close-window"'

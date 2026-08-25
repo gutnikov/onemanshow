@@ -1,0 +1,55 @@
+# The observation window, closed by a schedule rather than by a person watching
+# a clock. Until this existed, a person did watch the clock.
+name: window
+on:
+  workflow_call:
+    secrets:
+      SOPS_AGE_KEY: { required: true }
+jobs:
+  window:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: install sops
+        run: |
+          curl -fsSL -o /tmp/sops https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64
+          sudo install -m 0755 /tmp/sops /usr/local/bin/sops
+
+      # The configuration is read from the project's own file, so the window's
+      # length lives in one place. Reading it here rather than passing it as an
+      # input keeps the instance stub free of a number that would then exist
+      # twice and drift.
+      - id: config
+        run: |
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          import re, yaml
+          c = yaml.safe_load(open("ship.yml"))
+          window = str((c.get("release") or {}).get("observation_window", "30m"))
+          m = re.fullmatch(r"(\d+)\s*([mh])", window.strip())
+          if not m:
+              raise SystemExit(f"::error::observation_window '{window}' is not a number of minutes or hours")
+          minutes = int(m.group(1)) * (60 if m.group(2) == "h" else 1)
+          obs = ((c.get("roles") or {}).get("observability") or {})
+          print(f"WINDOW_MINUTES={minutes}")
+          print(f"SENTRY_ORG={obs.get('sentry_org') or ''}")
+          print(f"SENTRY_PROJECT={obs.get('sentry_project') or ''}")
+          print(f"LIVENESS_SOURCE={obs.get('liveness') or ''}")
+          PY
+
+      # Actions masks values that came from secrets.*, and nothing else.
+      - name: read the diagnostics token
+        env: { SOPS_AGE_KEY: "${{ secrets.SOPS_AGE_KEY }}" }
+        run: |
+          set -eu
+          v="$(sops -d --extract '["SENTRY_READ_TOKEN"]' secrets/ci.yaml)"
+          echo "::add-mask::$v"
+          echo "SENTRY_READ_TOKEN=$v" >> "$GITHUB_ENV"
+
+      - uses: gutnikov/onemanshow/.github/actions/close-window@main
+        with:
+          window_minutes: ${{ env.WINDOW_MINUTES }}
+          token: ${{ github.token }}

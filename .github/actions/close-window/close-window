@@ -1,0 +1,109 @@
+#!/bin/sh
+# Closes observation windows that have elapsed, and takes up the queue head.
+#
+# Derived, not held. Nothing has to stay alive to keep a timer: each run asks
+# which changes are in `released` and how long ago they got there. A missed run
+# costs lateness rather than a stuck change, and two runs racing find the work
+# already done.
+#
+# It reports on every run, including runs with nothing to do. A schedule that
+# has silently stopped and a quiet period look identical otherwise, and the
+# first leaves changes open in `released` for ever while an open ticket reads
+# like ordinary work in progress.
+set -eu
+
+REPO="${GITHUB_REPOSITORY:?}"
+WINDOW="${OBSERVATION_WINDOW_MINUTES:?}"
+now="$(date -u +%s)"
+acted=0
+
+echo "window check at $(date -u +%Y-%m-%dT%H:%M:%SZ), window is ${WINDOW}m"
+
+released="$(gh issue list --state open --label status:released --json number -q '.[].number')"
+if [ -z "$released" ]; then
+  echo "  nothing in released"
+else
+  for ticket in $released; do
+    # When it entered `released`, from the label event rather than from a
+    # timestamp anybody wrote down.
+    since="$(gh api "repos/${REPO}/issues/${ticket}/timeline" --paginate \
+              -q '[.[] | select(.event == "labeled" and .label.name == "status:released")] | last | .created_at' \
+              2>/dev/null || true)"
+    if [ -z "$since" ] || [ "$since" = null ]; then
+      echo "  #${ticket}: no record of entering released - leaving it alone rather than guessing"
+      continue
+    fi
+    started="$(python3 -c "
+import datetime, sys
+print(int(datetime.datetime.fromisoformat(sys.argv[1].replace('Z','+00:00')).timestamp()))" "$since")"
+    elapsed=$(( (now - started) / 60 ))
+    if [ "$elapsed" -lt "$WINDOW" ]; then
+      echo "  #${ticket}: ${elapsed}m of ${WINDOW}m elapsed - still under observation"
+      continue
+    fi
+
+    echo "  #${ticket}: ${elapsed}m elapsed, asking every source"
+    sha="$(gh api "repos/${REPO}/issues/${ticket}/timeline" --paginate \
+            -q '[.[] | select(.event == "referenced")] | last | .commit_id' 2>/dev/null || true)"
+    [ -n "${RELEASE_SHA:-}" ] && sha="$RELEASE_SHA"
+    if [ -z "$sha" ] || [ "$sha" = null ]; then
+      echo "    could not determine which commit was released - leaving it open"
+      continue
+    fi
+
+    # The release includes the post-deploy smoke, so its conclusion is the
+    # smoke result. Read rather than assumed: an absent answer is unknown.
+    smoke="$(gh run list --workflow "${RELEASE_WORKFLOW_NAME:-on main}" --limit 20 \
+              --json headSha,conclusion -q "[.[] | select(.headSha == \"${sha}\")] | first | .conclusion" \
+              2>/dev/null || true)"
+    case "$smoke" in success) smoke=success ;; failure) smoke=failure ;; *) smoke=unknown ;; esac
+
+    if SMOKE_RESULT="$smoke" "${ACTION_DIR}/../health-window/health-window" "$sha"; then
+      gh issue comment "$ticket" --body "$(printf '%s' "\
+## Window closed after ${elapsed} minutes — completed
+
+Every configured source was asked and none reported a problem. The detail is in the run.
+
+This is the absence of the signals we can see, in the time we allowed. It is not proof that production is fine.")"
+      gh issue close "$ticket" --reason completed
+      gh issue edit "$ticket" --remove-label status:released
+      echo "    closed #${ticket} as completed"
+    else
+      gh issue comment "$ticket" --body "$(printf '%s' "\
+## Window closed after ${elapsed} minutes — a source reported a problem
+
+Marked \`blocked:rollback\`. The detail is in the run.
+
+**Nothing has been rolled back.** A rollback thirty minutes after a successful deploy, on a signal that accumulated rather than a smoke that failed outright, is a judgment call — and rolling back restores the artifact and neither the configuration nor the schema, so it is not the safe default it looks like.
+
+Say the word and I will read the sources and decide.")"
+      gh issue edit "$ticket" --add-label blocked:rollback
+      echo "    #${ticket} left open and blocked:rollback"
+    fi
+    acted=$((acted+1))
+  done
+fi
+
+# --- the queue head ----------------------------------------------------------
+# Stated separately because its failure is the worst kind: everything looks
+# healthy while work has silently stopped.
+busy="$(gh issue list --state open --json number,labels \
+         -q '[.[] | select(any(.labels[].name; . == "status:dev" or . == "status:staging" or . == "status:ready-to-release" or . == "status:released")) | select(all(.labels[].name; . != "paused"))] | length')"
+if [ "$busy" -gt 0 ]; then
+  echo "  segment busy (${busy}) - the queue waits"
+else
+  head="$(gh issue list --state open --label status:ready-for-dev --json number -q 'sort_by(.number) | first | .number')"
+  if [ -z "$head" ] || [ "$head" = null ]; then
+    echo "  segment free and the queue is empty - nothing waiting"
+  else
+    gh issue edit "$head" --remove-label status:ready-for-dev --add-label status:dev
+    gh issue comment "$head" --body "$(printf '%s' "\
+The segment freed, so this is now in \`dev\`. Nobody asked — a queue that needs poking is a queue that silently stops.
+
+Say the word when you want the work started; the state is readable from the tools, so nothing has to be repeated.")"
+    echo "  segment free - took up #${head} from the queue"
+    acted=$((acted+1))
+  fi
+fi
+
+echo "window check finished, ${acted} action(s)"
