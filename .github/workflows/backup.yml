@@ -39,10 +39,13 @@ jobs:
       SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
     steps:
       - uses: actions/checkout@v4
-      - name: install sops
+      - name: install sops and age
         run: |
           curl -fsSL -o /tmp/sops https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64
           sudo install -m 0755 /tmp/sops /usr/local/bin/sops
+          curl -fsSL https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz \
+            | tar -xz -C /tmp
+          sudo install -m 0755 /tmp/age/age /usr/local/bin/age
 
       - uses: gutnikov/onemanshow/.github/actions/ssh-agentless@main
         with:
@@ -76,14 +79,19 @@ jobs:
             exit 1
           fi
 
+      # The query travels as an environment variable. Interpolating an input
+      # into the script makes it part of the script, so a caller could run
+      # commands as this job - the same mistake the composite actions were
+      # fixed for, made again here.
       - name: restore it into a scratch database and read a known row
         env:
           SCRATCH: postgres://scratch:scratch@localhost:5544/scratch
+          KNOWN_ROW_QUERY: ${{ inputs.known_row_query }}
         run: |
           set -eu
           docker run --rm --network host -e PGURL="$SCRATCH" -v /tmp/backup.sql:/backup.sql:ro \
             postgres:17-alpine sh -c 'psql -q -f /backup.sql "$PGURL"'
-          value="$(docker run --rm --network host -e PGURL="$SCRATCH" -e Q='${{ inputs.known_row_query }}' \
+          value="$(docker run --rm --network host -e PGURL="$SCRATCH" -e Q="$KNOWN_ROW_QUERY" \
             postgres:17-alpine sh -c 'psql -t -A -c "$Q" "$PGURL"')"
           echo "known row reads back as: $value"
           if [ -z "$value" ]; then
