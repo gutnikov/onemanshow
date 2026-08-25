@@ -99,19 +99,40 @@ jobs:
             exit 1
           fi
 
+      # A dump is the whole production database, and an artifact can be
+      # downloaded by anyone who can read the repository. It leaves the runner
+      # encrypted to the same age recipient that already guards this
+      # environment's secrets; the key is not in the repository, so the artifact
+      # is useless on its own.
+      - name: encrypt the dump before it leaves the runner
+        run: |
+          set -eu
+          recipient="$(grep -A1 'secrets/prod' .sops.yaml | sed -n 's/.*age: *//p' | head -1)"
+          case "$recipient" in
+            age1*) ;;
+            *) echo "::error::No age recipient for production found in .sops.yaml"; exit 1 ;;
+          esac
+          age -r "$recipient" -o /tmp/backup.sql.age /tmp/backup.sql
+          rm -f /tmp/backup.sql
+          echo "encrypted to ${recipient} ($(wc -c < /tmp/backup.sql.age) bytes)"
+          # A step that reports success without producing ciphertext is the
+          # failure this whole workflow is built to avoid, so it is checked.
+          if grep -qa 'CREATE TABLE' /tmp/backup.sql.age; then
+            echo "::error::The artifact still contains plaintext SQL."
+            exit 1
+          fi
+
       - name: keep it
         uses: actions/upload-artifact@v4
         with:
           name: backup-${{ github.run_id }}
-          path: /tmp/backup.sql
+          path: /tmp/backup.sql.age
           retention-days: 30
 
-      # Storing a backup in the same account as the thing it backs up is the
-      # part to fix before the data matters: losing or compromising the account
-      # loses both. Object storage elsewhere is the answer; an artifact is what
-      # works today with no extra vendor.
+      # Encryption fixes the exposure, not the location. A backup in the same
+      # account as the repository and the deploy keys is lost with that account.
       - name: say what this is not yet
         run: |
-          echo "::warning::This backup lives in the same account as the repository" \
-               "and the deploy keys. Point it at object storage under a different" \
-               "account before the data is worth anything."
+          echo "::warning::This backup is encrypted but still lives in the same" \
+               "account as the repository and the deploy keys. Put it in object" \
+               "storage elsewhere before the data is worth anything."
