@@ -156,6 +156,36 @@ Recorded as a hole rather than left implied. Data lives in a bind mount on one m
 
 It is also independent of where the database runs: it wants closing whether the database stays here or moves to a managed platform. The cheap closure is a scheduled dump to object storage - a free tier with no egress charges suits it - which fixes the real problem without changing the architecture or spending the platform's monthly fee to get backups as a side effect.
 
+### The agent does not answer an app, only a person
+
+Measured, and it settles the one question the design left open.
+
+The discriminator is authorship, not the mention. A message from an app is
+ignored whether or not it carries a real mention: an app-authored `<@…>` sat in
+the thread for three minutes with no reaction, while the same mention typed by a
+person produced a reply immediately. Posting through an incoming webhook and
+through a bot token behaved identically, so it is not a webhook limitation.
+
+So variant A as designed is dead: automation cannot wake the agent by writing in
+the thread. Two things survive it, and together they are close to enough.
+
+**App messages are visible.** The agent read the test messages and reasoned about
+them, so anything automation writes becomes context rather than noise. The
+working model is therefore that n8n *records* events in the thread and a person's
+one-word mention pulls the agent in with everything already there - which is
+cheaper for the person than explaining the situation, and was demonstrated
+accidentally when a two-character reply did exactly that.
+
+**The fallbacks stand.** Posting with a *user* token should trigger, since
+authorship is the discriminator - though that is inference from this measurement
+and not itself measured, and it needs the app to request user scopes. Failing
+that, a headless run in a workflow covers the five events that need judgement,
+while the other nine of fourteen were always plain API calls.
+
+The cost of the answer is therefore convenience rather than architecture, which
+is what the design assumed when it made automation an accelerator rather than a
+dependency. That assumption is now tested rather than hoped for.
+
 ## Risks / Trade-offs
 
 - **The Claude Code Slack app may ignore messages authored by another application** → This is the one unknown that could change the shape of the automation layer, which is why measuring it is a goal of this change rather than an assumption. Fallbacks in order: post with a user token so the message is an ordinary human one; failing that, run the agent headless in an Actions workflow for the small number of events that need judgment. Either way the pipeline itself is unaffected.
