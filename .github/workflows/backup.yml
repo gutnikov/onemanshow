@@ -1,0 +1,103 @@
+# A backup that has never been restored is not a backup, so this workflow
+# restores every dump it takes - into a scratch database, then reads a known row
+# back out. A dump that cannot be restored fails the run loudly, which is the
+# only way a backup stops rotting unnoticed.
+#
+# It runs off the machine on purpose. A cron on the box fails into the void; a
+# scheduled workflow that stops working is visible.
+name: backup
+
+on:
+  workflow_call:
+    inputs:
+      host: { required: true, type: string }
+      host_key: { required: false, type: string, default: "" }
+      known_row_query:
+        description: SQL returning one known value from a restored dump, used to prove the restore worked
+        required: false
+        type: string
+        default: "select count(*)::text from greeting"
+    secrets:
+      SOPS_AGE_KEY: { required: true }
+      SSH_PRIVATE_KEY: { required: true }
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    services:
+      scratch:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: scratch
+          POSTGRES_PASSWORD: scratch
+          POSTGRES_DB: scratch
+        ports: ['5544:5432']
+        options: >-
+          --health-cmd "pg_isready -U scratch" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: install sops and a postgres client
+        run: |
+          curl -fsSL -o /tmp/sops https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64
+          sudo install -m 0755 /tmp/sops /usr/local/bin/sops
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client >/dev/null
+
+      - uses: gutnikov/onemanshow/.github/actions/ssh-agentless@main
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ inputs.host }}
+          host_key: ${{ inputs.host_key }}
+
+      - name: read production credentials
+        run: |
+          set -eu
+          v="$(sops -d --extract '["DATABASE_URL_TUNNEL"]' secrets/prod.yaml)"
+          echo "::add-mask::$v"
+          echo "DATABASE_URL_TUNNEL=$v" >> "$GITHUB_ENV"
+
+      - name: dump production through a tunnel
+        run: |
+          set -eu
+          ssh -f -N -L 5432:localhost:5432 "root@${{ inputs.host }}"
+          pg_dump --no-owner --no-privileges --format=plain "$DATABASE_URL_TUNNEL" > /tmp/backup.sql
+          bytes="$(wc -c < /tmp/backup.sql)"
+          echo "dump is $bytes bytes"
+          # An empty or trivially small dump is the usual way this fails
+          # silently: the command succeeds and produces nothing useful.
+          if [ "$bytes" -lt 200 ]; then
+            echo "::error::The dump is $bytes bytes, which cannot be a real database."
+            exit 1
+          fi
+
+      - name: restore it into a scratch database and read a known row
+        env:
+          SCRATCH: postgres://scratch:scratch@localhost:5544/scratch
+        run: |
+          set -eu
+          psql "$SCRATCH" -q -f /tmp/backup.sql
+          value="$(psql "$SCRATCH" -t -A -c '${{ inputs.known_row_query }}')"
+          echo "known row reads back as: $value"
+          if [ -z "$value" ]; then
+            echo "::error::The dump restored but the known row is missing, so the backup is not usable."
+            exit 1
+          fi
+
+      - name: keep it
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ github.run_id }}
+          path: /tmp/backup.sql
+          retention-days: 30
+
+      # Storing a backup in the same account as the thing it backs up is the
+      # part to fix before the data matters: losing or compromising the account
+      # loses both. Object storage elsewhere is the answer; an artifact is what
+      # works today with no extra vendor.
+      - name: say what this is not yet
+        run: |
+          echo "::warning::This backup lives in the same account as the repository" \
+               "and the deploy keys. Point it at object storage under a different" \
+               "account before the data is worth anything."
