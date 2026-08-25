@@ -20,7 +20,6 @@ on:
       host: { required: true, type: string }
       domain: { description: Production host name, required: true, type: string }
       staging_domain: { required: true, type: string }
-      staging_volume: { required: true, type: string }
       staging_db_container: { required: true, type: string }
       host_key:
         description: known_hosts line for the machine, from ssh-keyscan. Not a secret.
@@ -127,7 +126,6 @@ jobs:
         uses: gutnikov/onemanshow/.github/actions/reset-staging@main
         with:
           host: ${{ inputs.host }}
-          volume: ${{ inputs.staging_volume }}
           container: ${{ inputs.staging_db_container }}
 
       - name: bring an empty staging database back
@@ -176,7 +174,6 @@ jobs:
         uses: gutnikov/onemanshow/.github/actions/reset-staging@main
         with:
           host: ${{ inputs.host }}
-          volume: ${{ inputs.staging_volume }}
           container: ${{ inputs.staging_db_container }}
 
       - name: bring the staging database back

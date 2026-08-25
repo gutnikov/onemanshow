@@ -179,6 +179,18 @@ The forwarded list is now derived from the file that declares the secrets, and a
 
 Also observed rather than predicted: production served errors for about twelve minutes and the external monitor never declared anything, because declaring needs two consecutive failures at ten-minute intervals. This is the timing limitation recorded earlier, now measured. Within-window health rests on the post-deploy smoke check; liveness is a slower, second line.
 
+### The reset destroyed nothing for as long as nobody looked
+
+The largest finding of the exercise, and the one that best justifies having built the skeleton at all.
+
+The reset removed a *named volume* by name. The deploy tool stores accessory data in a *bind mount* to a host directory, so there was no such volume - and `docker volume rm` on a missing volume is silent, while the `docker volume create` that followed produced a real but entirely unused volume. Every reset reported success, a check for "the volume exists" would have passed, and the data sat untouched in the directory the whole time.
+
+Staging therefore validated against accumulated state for the entire run, which is precisely what resetting exists to prevent. It surfaced only when a migration renamed a column: the next baseline seed failed because the schema it expected was no longer there, having survived every reset since.
+
+Two lessons, and the second is the general one. The reset now **asks the container where its data actually lives** rather than assuming a storage shape, and verifies afterwards that the directory is empty - a destructive step that cannot confirm it destroyed anything is indistinguishable from a no-op. And the guard is unchanged in spirit but now applies to both the container name and the derived path, because deriving the path from a mislabelled container would hand us production.
+
+The general lesson: **a verification that cannot fail is not a verification.** The old reset had a guard, a dry-run mode and a success message, and did nothing.
+
 ## Migration Plan
 
 Nothing exists yet, so this is a bootstrap rather than a migration. The ordering is forced by dependency: secrets, then registry, then the machine, then the pipeline. That sequence reaches a real production deploy; a domain, staging preparation, observability and automation follow afterwards and each merely lights up another stage.

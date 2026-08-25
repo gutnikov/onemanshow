@@ -5,7 +5,6 @@ description: >
   so it cannot be missing from a project that was created before it existed.
 inputs:
   host: { description: Machine to act on, required: true }
-  volume: { description: Staging volume name, required: true }
   container: { description: Staging database container name, required: true }
 runs:
   using: composite
@@ -13,9 +12,8 @@ runs:
     - shell: sh
       env:
         HOST: ${{ inputs.host }}
-        VOLUME: ${{ inputs.volume }}
         CONTAINER: ${{ inputs.container }}
         ACTION_PATH: ${{ github.action_path }}
       run: |
         ssh "root@$HOST" 'sh -s' \
-          < "$ACTION_PATH/reset-staging" "$VOLUME" "$CONTAINER"
+          < "$ACTION_PATH/reset-staging" "$CONTAINER"

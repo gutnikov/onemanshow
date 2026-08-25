@@ -82,6 +82,14 @@ Separation of storage is what this requirement guarantees. It does NOT guarantee
 - **WHEN** a process in the staging environment opens a connection to the production database on a shared machine
 - **THEN** the connection may be established at the transport level but authentication fails, because the environments hold distinct credentials
 
+#### Scenario: Reset confirms it destroyed something
+- **WHEN** the reset operation completes
+- **THEN** it has verified that the data it was meant to destroy is gone, because a destructive step that cannot confirm its effect is indistinguishable from one that did nothing
+
+#### Scenario: Reset discovers where the data lives
+- **WHEN** the reset operation runs
+- **THEN** it determines the storage location from the running environment rather than assuming a storage shape, and refuses if the location it finds does not identify itself as staging
+
 #### Scenario: Reset is pointed at a non-staging target
 - **WHEN** the reset operation is invoked with a target that does not match the staging identity
 - **THEN** it refuses and performs no destructive action

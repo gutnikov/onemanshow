@@ -1,39 +1,61 @@
 #!/bin/sh
-# Destroys the staging data plane and starts an empty database in its place.
+# Destroys the staging data plane.
 #
-# The guard is the whole reason this is a script. On a machine that hosts both
-# environments the likeliest incident is not load but an operation pointed at
-# the wrong target, so the destructive command refuses anything whose name does
-# not identify it as staging. It is a refusal, not a warning: a warning relies
-# on somebody reading it.
+# It asks the container where its data actually lives rather than assuming.
+# The previous version removed a *named volume* by name, while the deploy tool
+# stores accessory data in a *bind mount* to a host directory - so it destroyed
+# an unused volume, reported success, and left the data untouched. Staging then
+# validated against accumulated state for as long as that went unnoticed, which
+# is exactly what resetting exists to prevent. Worse, `docker volume rm` on a
+# missing volume is silent, and `docker volume create` afterwards made the
+# fiction check out.
+#
+# The guard is the other half: on a machine that hosts both environments the
+# likeliest incident is not load but an operation pointed at the wrong target,
+# so anything whose identity does not say staging is refused rather than warned
+# about.
 set -eu
 
-VOLUME="${1:?usage: reset-staging <volume> [container]}"
-CONTAINER="${2:-onemanshow-staging-db}"
+CONTAINER="${1:?usage: reset-staging <container>}"
 PATTERN='staging'
-
-case "$VOLUME" in
-  *"$PATTERN"*) ;;
-  *)
-    printf 'refusing: %s does not identify a staging target\n' "$VOLUME" >&2
-    exit 1
-    ;;
-esac
 
 case "$CONTAINER" in
   *"$PATTERN"*) ;;
-  *)
-    printf 'refusing: %s does not identify a staging target\n' "$CONTAINER" >&2
-    exit 1
-    ;;
+  *) printf 'refusing: %s does not identify a staging target\n' "$CONTAINER" >&2; exit 1 ;;
 esac
 
+if ! source_path="$(docker inspect "$CONTAINER" \
+      --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Source}}{{end}}{{end}}' 2>/dev/null)"; then
+  printf 'refusing: cannot inspect %s to find where its data lives\n' "$CONTAINER" >&2
+  exit 1
+fi
+
+if [ -z "$source_path" ]; then
+  printf 'refusing: %s has no data mount to destroy\n' "$CONTAINER" >&2
+  exit 1
+fi
+
+# The path must also identify itself as staging. Deriving it from the container
+# is not enough on its own: a mislabelled container would hand us production.
+case "$source_path" in
+  *"$PATTERN"*) ;;
+  *) printf 'refusing: data path %s does not identify a staging target\n' "$source_path" >&2; exit 1 ;;
+esac
+
+printf 'destroying %s (data at %s)\n' "$CONTAINER" "$source_path"
+
 if [ "${SHIP_RESET_DRY_RUN:-}" = "1" ]; then
-  printf 'would destroy volume %s and container %s\n' "$VOLUME" "$CONTAINER"
+  printf 'dry run: would remove the container and empty %s\n' "$source_path"
   exit 0
 fi
 
 docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
-docker volume rm "$VOLUME" >/dev/null 2>&1 || true
-docker volume create "$VOLUME" >/dev/null
-printf 'destroyed and recreated %s\n' "$VOLUME"
+rm -rf "${source_path:?}"/* "${source_path:?}"/.[!.]* 2>/dev/null || true
+mkdir -p "$source_path"
+
+remaining="$(ls -A "$source_path" 2>/dev/null | wc -l | tr -d ' ')"
+if [ "$remaining" != "0" ]; then
+  printf 'reset did not empty %s: %s entries remain\n' "$source_path" "$remaining" >&2
+  exit 1
+fi
+printf 'emptied %s\n' "$source_path"
