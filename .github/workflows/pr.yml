@@ -12,7 +12,7 @@ on:
       image: { required: true, type: string }
       service: { description: Service name of the production destination, required: true, type: string }
       staging_service: { required: true, type: string }
-      registry_user: { description: Registry account, not a secret, required: true, type: string }
+      registry_user: { description: Registry account name (not a secret), required: true, type: string }
     secrets:
       # Named to match what a project actually holds, so a stub can use
       # "secrets: inherit" and stay short.
