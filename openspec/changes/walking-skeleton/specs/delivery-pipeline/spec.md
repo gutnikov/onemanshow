@@ -16,7 +16,9 @@ For every change under review the pipeline SHALL run `ship/check` and then build
 - **THEN** the pipeline builds one image and tags it with the commit SHA under review
 
 ### Requirement: One immutable artifact per change
-Each change SHALL produce exactly one image, tagged only with its commit SHA. The pipeline SHALL NOT create or move floating tags such as `latest`, `staging` or `prod`, because a floating tag makes it impossible to verify what is running.
+Each change SHALL be built exactly once. The built image SHALL be tagged with its commit SHA, and the pipeline SHALL NOT create or move floating tags of its own such as `latest`, `staging` or `prod`, because a floating tag makes it impossible to verify what is running. A deployment tool may create such a tag locally on the machine as a side effect; the requirement governs what the pipeline produces and publishes.
+
+Where a deployment tool requires per-destination metadata in the image, the pipeline MAY publish a destination-labelled derivative of the built image. Such a derivative SHALL share every layer with the image that was built, differing only in metadata, and the promotion check SHALL then compare layer digests rather than the image digest.
 
 #### Scenario: Determining what production runs
 - **WHEN** an operator or agent asks which commit production is running
@@ -25,6 +27,10 @@ Each change SHALL produce exactly one image, tagged only with its commit SHA. Th
 #### Scenario: An attempt to serve two artifacts
 - **WHEN** a change would require more than one image to be deployed together
 - **THEN** the pipeline rejects it, since promotion of a set cannot be verified with one comparison
+
+#### Scenario: A destination-labelled derivative is published
+- **WHEN** a derivative image is published so that a destination's deployment tool will accept it
+- **THEN** its layer digests are identical to those of the image that was built and validated, and a differing layer fails the promotion check
 
 ### Requirement: Staging baseline is derived from production's commit
 Before validating a change, the pipeline SHALL rebuild the staging data plane from scratch: destroy the staging data volume, start an empty database, then run `ship/migrate` and `ship/seed` at the commit production is currently running. It SHALL NOT restore a stored dump, and SHALL NOT seed directly at the commit under review.

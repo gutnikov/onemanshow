@@ -139,12 +139,23 @@ That is the worst possible moment to look healthy. Our own design makes the exte
 
 Readiness therefore compares in both directions and names the two states separately: `migrations-behind` and `schema-ahead`. The comparison was extracted into a pure function so `check` covers it, which is the same argument as everywhere else — the cheapest gate should hold as much as it can.
 
+### The deployment tool wants per-destination metadata in the image
+
+Found on the first real deploy, and it is a collision between two of our own decisions rather than a fault in the tool. Kamal refuses an image whose `service` label does not match the destination's service name, and it normally writes that label while building. We build once and promote, and two environments on one machine need different service names to avoid colliding container and volume names — so one built image cannot carry both labels.
+
+Resolved by publishing a thin destination-labelled derivative: same layers, different metadata. Verified on the first deploy by comparing all eight layer digests between the built image and the derivative.
+
+The cost is stated plainly rather than glossed: the invariant is no longer "the same image digest reaches production" but "the same layers do". The running filesystem is byte-identical, which is what the invariant was protecting, but checking it is now a comparison of layer lists instead of one string.
+
+The alternative was a second machine, which is what Kamal's destination model actually assumes and which would have kept the digest comparison. It was declined in favour of one machine; this is the second bill for that choice, after binding database ports to loopback because Docker bypasses the firewall.
+
 ## Risks / Trade-offs
 
 - **The Claude Code Slack app may ignore messages authored by another application** → This is the one unknown that could change the shape of the automation layer, which is why measuring it is a goal of this change rather than an assumption. Fallbacks in order: post with a user token so the message is an ordinary human one; failing that, run the agent headless in an Actions workflow for the small number of events that need judgment. Either way the pipeline itself is unaffected.
 - **A crash loop can exhaust the free error-tracking quota and blind us** → Spike protection and client-side sampling are mandatory, not optional. This is a loop that burns an external quota rather than our own resources, so "is it cheap to repeat this a hundred times?" must be read as covering exhaustible resources, not only destructive ones.
 - **A free monitoring tier typically checks every five minutes**, which bounds detection latency regardless of how short the observation period is → Accepted, but it must be stated rather than discovered: the guarantee is "within about five minutes", not "immediately".
 - **Synthetic staging cannot reveal defects that depend on real data** → Accepted deliberately, and it is why post-release verification carries more weight than staging does. Staging proves the code and the migration path; production behaviour is proven only in production.
+- **A Read & Write registry token cannot delete tags** → Docker Hub separates delete into its own scope, so the pruning discipline this design asks for needs a Read/Write/Delete token or a manual step. Discovered by failing to remove a probe tag with HTTP 403.
 - **Free-tier terms change** → Every dependency is either self-hosted or trivially replaceable, and the only irreplaceable one, GitHub, is also the least likely to change. Verify current quotas before committing rather than trusting the numbers recorded here.
 - **A shared machine means a staging fault can affect production** → Mitigated by the three rules above, and structurally limited by exclusivity, which keeps the two from being busy at once.
 

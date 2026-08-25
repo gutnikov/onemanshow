@@ -1,0 +1,27 @@
+#!/bin/sh
+# Derives a destination-labelled image from an already-built one.
+#
+# Kamal refuses an image whose "service" label does not match the destination's
+# service name, and it normally sets that label itself while building. We build
+# once and promote, and our two destinations have different service names, so one
+# built image cannot carry both labels.
+#
+# This derives a thin image per destination: the layers are the ones that were
+# built and tested, only the metadata differs. The honest consequence is that the
+# invariant is no longer "the same image digest reaches production" but "the same
+# layers do" - so it is checked by comparing layer lists rather than one digest.
+set -eu
+
+IMAGE="${1:?usage: label-image <image> <sha> <service> <destination>}"
+SHA="${2:?}"
+SERVICE="${3:?}"
+DEST="${4:?}"
+
+CTX="$(mktemp -d)"
+printf 'FROM %s:%s\nLABEL service=%s\n' "$IMAGE" "$SHA" "$SERVICE" > "$CTX/Dockerfile"
+docker buildx build --platform linux/amd64 -t "${IMAGE}:${SHA}-${DEST}" --push "$CTX" >/dev/null 2>&1
+rm -rf "$CTX"
+
+base="$(docker buildx imagetools inspect --raw "${IMAGE}:${SHA}" | shasum | cut -d' ' -f1)"
+echo "${IMAGE}:${SHA}-${DEST} pushed (service=${SERVICE})"
+echo "base manifest checksum ${base}"

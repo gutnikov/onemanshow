@@ -17,9 +17,9 @@ All tasks are performed in this repository or in an external service, except gro
 
 ## 3. Registry
 
-- [ ] 3.1 Create one private Docker Hub repository for the application image; verify it is visible and empty
-- [ ] 3.2 Create two access tokens, read-write and read-only, and encrypt both with SOPS; verify the read-only token cannot push by attempting a push and receiving a permission error
-- [ ] 3.3 Confirm the pull-rate and storage terms currently in force; verify the recorded figures in `design.md` still match and correct them if not
+- [x] 3.1 Create one private Docker Hub repository for the application image; verify it is visible and empty
+- [x] 3.2 Create two access tokens, read-write and read-only, and encrypt both with SOPS; verify the read-only token cannot push by attempting a push and receiving a permission error
+- [x] 3.3 Confirm the pull-rate and storage terms currently in force; verify the recorded figures in `design.md` still match and correct them if not
 
 ## 4. Reference application
 
