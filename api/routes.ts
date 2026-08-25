@@ -16,7 +16,10 @@ export function createRoutes(connection: ReturnType<typeof connect>) {
       // up and /health keeps answering 2xx - the "up but broken" mode that a
       // liveness check alone cannot see, and the reason smoke exercises pages.
       if (flag('SHIP_BREAK_GREETING')) {
-        return c.json({ error: 'deliberately broken' as const }, 500);
+        // Throwing rather than returning a tidy 500 makes one switch exercise
+        // two paths: the smoke set fails, and an error reaches the tracker
+        // attributed to this release.
+        throw new Error('deliberately broken by SHIP_BREAK_GREETING');
       }
       const rows = await connection.db.select().from(greeting).limit(1);
       const row = rows[0];
