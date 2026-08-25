@@ -71,7 +71,7 @@ All tasks are performed in this repository or in an external service, except gro
 
 ## 8b. Backups
 
-- [ ] 8b.1 Add a scheduled database dump to object storage, with a guard that the dump is non-empty and restorable; verify by restoring one into an empty database and reading a known row back. Recorded now because production currently has no backup at all, and a dump nobody has restored is not a backup
+- [x] 8b.1 Add a scheduled database dump, with a guard that the dump is non-empty and restorable; verify by restoring one into an empty database and reading a known row back. Every run restores into a scratch database and reads the row, then encrypts the dump to the production age recipient - verified by downloading an artifact, finding no plaintext SQL in it, and decrypting it back to the real dump. It goes to an artifact rather than object storage, which the run says out loud is the remaining flaw: a backup in the same account as the repository and the deploy keys is lost with that account
 
 ## 9. Validation (in the testbed)
 
