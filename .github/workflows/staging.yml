@@ -56,13 +56,22 @@ jobs:
           host: ${{ inputs.host }}
           host_key: ${{ inputs.host_key }}
 
+      # Actions masks values that came from secrets.*, and nothing else. A value
+      # decrypted here and exported is printed verbatim in the step's env dump,
+      # so every one is registered for masking first. Without this the whole
+      # arrangement leaks a project's credentials into its own build logs.
       - name: read staging credentials
         run: |
-          {
-            echo "KAMAL_REGISTRY_PASSWORD=$(sops -d --extract '["REGISTRY_TOKEN_RO"]' secrets/staging.yaml)"
-            echo "DATABASE_URL=$(sops -d --extract '["DATABASE_URL"]' secrets/staging.yaml)"
-            echo "POSTGRES_PASSWORD=$(sops -d --extract '["POSTGRES_PASSWORD"]' secrets/staging.yaml)"
-          } >> "$GITHUB_ENV"
+          set -eu
+          read_secret() {
+            v="$(sops -d --extract "[\"$1\"]" "secrets/staging.yaml")"
+            echo "::add-mask::$v"
+            echo "$2=$v" >> "$GITHUB_ENV"
+          }
+          read_secret REGISTRY_TOKEN_RO KAMAL_REGISTRY_PASSWORD
+          read_secret DATABASE_URL DATABASE_URL
+          read_secret POSTGRES_PASSWORD POSTGRES_PASSWORD
+          read_secret DATABASE_URL_TUNNEL DATABASE_URL_TUNNEL
 
       # Production's version tag carries a destination suffix; the commit is
       # what the baseline needs, so the suffix is stripped.
@@ -111,19 +120,18 @@ jobs:
       # Baseline: production's schema and data, produced by production's code.
       - name: migrate and seed at production's commit
         run: |
-          url="$(sops -d --extract '["DATABASE_URL_TUNNEL"]' secrets/staging.yaml)"
           git worktree add /tmp/baseline "${{ steps.prod.outputs.sha }}"
           ln -s "$PWD/node_modules" /tmp/baseline/node_modules
-          cd /tmp/baseline && DATABASE_URL="$url" ./ship/migrate && DATABASE_URL="$url" ./ship/seed
+          cd /tmp/baseline
+          DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/migrate
+          DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/seed
 
       - name: deploy the change under review
         uses: gutnikov/onemanshow/.github/actions/kamal@main
         with: { args: "deploy --skip-push --version ${{ inputs.sha }}-staging -d staging" }
 
       - name: migrate at the commit under review
-        run: |
-          url="$(sops -d --extract '["DATABASE_URL_TUNNEL"]' secrets/staging.yaml)"
-          DATABASE_URL="$url" ./ship/migrate
+        run: DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/migrate
 
       # First run: did the migration break the application against real-shaped
       # data? Content-agnostic, because the data here is not this change's.
@@ -149,9 +157,8 @@ jobs:
         run: |
           pkill -f '15433:localhost:5433' || true
           ssh -f -N -L 15433:localhost:5433 "root@${{ inputs.host }}"
-          url="$(sops -d --extract '["DATABASE_URL_TUNNEL"]' secrets/staging.yaml)"
-          DATABASE_URL="$url" ./ship/migrate
-          DATABASE_URL="$url" ./ship/seed
+          DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/migrate
+          DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/seed
 
       # Second run: is the change itself right? Against its own fixtures.
       - name: feature correctness
