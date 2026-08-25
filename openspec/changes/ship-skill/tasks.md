@@ -13,15 +13,15 @@
 
 ## 3. Stage playbooks
 
-- [ ] 3.1 `playbooks/01-ticket.md` and `02-draft.md`: taking a raw idea to a proposal and a draft pull request, with the openspec artifacts created in `draft` because grill needs something to attack; verify the branch and draft pull request exist before grill begins
-- [ ] 3.2 `playbooks/03-grill.md`: the examination, its items, and the subagent that conducts it; verify revertability cannot be answered "not applicable" and that the answers land in the proposal itself
-- [ ] 3.3 `playbooks/04-ready-for-dev.md`: the queue, what the human gate is deciding, and how to report queue position; verify it says what to tell someone whose change is third in line
-- [ ] 3.4 `playbooks/05-dev.md`: implementation against `tasks.md`, and what to do when `check` or `build` fails; verify it distinguishes a failure of the change from a failure of the environment
-- [ ] 3.5 `playbooks/06-staging.md`: the two verification runs and what each proves, plus the interpretation rules for a red end-to-end run; verify it names all three readings — flake, broken test, real bug — and the route each takes
-- [ ] 3.6 `playbooks/07-approve.md`: what a person is being asked to look at, and what the agent should have prepared for them; verify it requires the stand's address to be handed over, since that is the only artifact of the handover
-- [ ] 3.7 `playbooks/08-deploy.md`: the merge guards, why the merge must be a fast-forward, and the promotion; verify it states that a rebuilt image is not the artifact that was validated
-- [ ] 3.8 `playbooks/09-stabilize.md`: the observation window, what closing it green means and what it does not; verify it forbids treating an unchecked source as healthy and states the monitor's declaration delay against the window
-- [ ] 3.9 `playbooks/rollback.md`: both steps, why the second is not bookkeeping, and the cascade guard; verify it says that configuration and schema survive an image rollback, and that automation does not fix its own fix
+- [x] 3.1 `playbooks/01-ticket.md` and `02-draft.md`: taking a raw idea to a proposal and a draft pull request, with the openspec artifacts created in `draft` because grill needs something to attack; verify the branch and draft pull request exist before grill begins
+- [x] 3.2 `playbooks/03-grill.md`: the examination, its items, and the subagent that conducts it; verify revertability cannot be answered "not applicable" and that the answers land in the proposal itself
+- [x] 3.3 `playbooks/04-ready-for-dev.md`: the queue, what the human gate is deciding, and how to report queue position; verify it says what to tell someone whose change is third in line
+- [x] 3.4 `playbooks/05-dev.md`: implementation against `tasks.md`, and what to do when `check` or `build` fails; verify it distinguishes a failure of the change from a failure of the environment
+- [x] 3.5 `playbooks/06-staging.md`: the two verification runs and what each proves, plus the interpretation rules for a red end-to-end run; verify it names all three readings — flake, broken test, real bug — and the route each takes
+- [x] 3.6 `playbooks/07-approve.md`: what a person is being asked to look at, and what the agent should have prepared for them; verify it requires the stand's address to be handed over, since that is the only artifact of the handover
+- [x] 3.7 `playbooks/08-deploy.md`: the merge guards, why the merge must be a fast-forward, and the promotion; verify it states that a rebuilt image is not the artifact that was validated
+- [x] 3.8 `playbooks/09-stabilize.md`: the observation window, what closing it green means and what it does not; verify it forbids treating an unchecked source as healthy and states the monitor's declaration delay against the window
+- [x] 3.9 `playbooks/rollback.md`: both steps, why the second is not bookkeeping, and the cascade guard; verify it says that configuration and schema survive an image rollback, and that automation does not fix its own fix
 
 ## 4. Bootstrap
 
