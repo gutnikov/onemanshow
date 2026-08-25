@@ -150,12 +150,18 @@ jobs:
           DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/migrate
           DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/seed
 
+      # The migration is applied before the image that requires it is deployed.
+      # The other order leaves a window where the schema is behind the code, and
+      # the readiness check refuses to call that healthy - correctly, which is
+      # how this ordering bug surfaced. The release workflow already did it this
+      # way round; staging did not, and only a migration that is not backward
+      # compatible could reveal the difference.
+      - name: migrate at the commit under review
+        run: DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/migrate
+
       - name: deploy the change under review
         uses: gutnikov/onemanshow/.github/actions/kamal@main
         with: { args: "deploy --skip-push --version ${{ inputs.sha }}-staging -d staging" }
-
-      - name: migrate at the commit under review
-        run: DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/migrate
 
       # First run: did the migration break the application against real-shaped
       # data? Content-agnostic, because the data here is not this change's.
