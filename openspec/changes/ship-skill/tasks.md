@@ -36,7 +36,7 @@
 
 ## 6. Verification
 
-- [ ] 6.1 Drive one change end to end with the skill rather than by hand, in the testbed; verify the skill determined each stage from the tools without being told where it was
-- [ ] 6.2 Interrupt that change mid-flight and invoke the skill fresh; verify it resumes from the tools rather than from anything it remembered
-- [ ] 6.3 Exhaust a change's invocation budget deliberately; verify it lands in `blocked` and that a human action refills it
+- [x] 6.1 Drive one change end to end with the skill rather than by hand, in the testbed; verify the skill determined each stage from the tools without being told where it was
+- [x] 6.2 Interrupt that change mid-flight and invoke the skill fresh; verify it resumes from the tools rather than from anything it remembered
+- [ ] 6.3 Exhaust a change's invocation budget deliberately; verify it lands in `blocked` and that a human action refills it. **Not verifiable as built.** The budget exists as a rule the agent is asked to follow, and nothing counts invocations or applies the label - so there is no mechanism to exhaust. Enforcement would have to live outside the agent, in the automation that invokes it, because an agent that has gone wrong is exactly the one that cannot be trusted to count itself. Left open deliberately rather than marked done against a rule nobody enforces
 - [x] 6.4 Check every playbook against the archived pipeline specs; verify no playbook claims behaviour the pipeline does not have, which is the drift the design flags as likely
