@@ -1,0 +1,22 @@
+name: kamal
+description: >
+  Runs Kamal from its published container image, so no Ruby is needed on the
+  runner and the version is pinned rather than whatever :latest happens to be.
+  Configuration reaches it through the environment the job has already set up -
+  a composite action cannot take secrets, and does not need to.
+inputs:
+  args:
+    description: Arguments passed to kamal, for example "deploy --skip-push --version x -d staging"
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: sh
+      run: |
+        docker run --rm \
+          -v "$PWD:/workdir" \
+          -v "$HOME/.ssh:/root/.ssh:ro" \
+          -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_STAGING_DOMAIN \
+          -e SHIP_REGISTRY_USER -e KAMAL_REGISTRY_PASSWORD \
+          -e DATABASE_URL -e POSTGRES_PASSWORD \
+          ghcr.io/basecamp/kamal:2.12.0 ${{ inputs.args }}

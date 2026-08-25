@@ -1,0 +1,18 @@
+name: authorise ssh
+description: >
+  Writes a deploy key and a permissive host-key policy for the machine. Kamal
+  runs in a container, so it needs the key as a file rather than an agent socket.
+inputs:
+  key: { description: Private key contents, required: true }
+  host: { description: Machine to trust, required: true }
+runs:
+  using: composite
+  steps:
+    - shell: sh
+      run: |
+        mkdir -p "$HOME/.ssh"
+        printf '%s\n' "${{ inputs.key }}" > "$HOME/.ssh/id_ed25519"
+        chmod 600 "$HOME/.ssh/id_ed25519"
+        printf 'Host *\n  StrictHostKeyChecking no\n  UserKnownHostsFile /dev/null\n  IdentityFile %s/.ssh/id_ed25519\n' "$HOME" > "$HOME/.ssh/config"
+        chmod 600 "$HOME/.ssh/config"
+        ssh -o BatchMode=yes "root@${{ inputs.host }}" 'echo ssh ok'
