@@ -74,13 +74,15 @@ jobs:
                    -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER \
                    -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
                    ghcr.io/basecamp/kamal:v2.12.0 app version)"
-          v="$(printf '%s\n' "$out" | tail -1 | tr -d '\r')"
-          sha="${v%-production}"
-          case "$sha" in
-            "" | *[!0-9a-f]*)
-              echo "could not read production's version, got: $out" >&2
-              exit 1 ;;
-          esac
+          # Positional parsing is not safe here: the output ends with a blank
+          # line, so tail -1 returns nothing. The commit is extracted by shape
+          # instead, and the result is validated before anything uses it.
+          sha="$(printf '%s\n' "$out" | grep -oE '^[0-9a-f]{40}' | tail -1 || true)"
+          if [ -z "$sha" ]; then
+            echo "could not read production's version, got:" >&2
+            printf '%s\n' "$out" >&2
+            exit 1
+          fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "production runs $sha"
 
