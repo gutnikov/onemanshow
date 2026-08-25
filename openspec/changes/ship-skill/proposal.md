@@ -25,7 +25,7 @@ Out of scope: changing the pipeline, the application, or the platform. `openspec
 - `project-bootstrap`: what `init` does in a fresh project, and what it must leave behind so the result is reproducible rather than merely working.
 
 ### Modified Capabilities
-<!-- None. This change adds process around the verified pipeline rather than altering it. -->
+- `delivery-pipeline`: the requirement that a migration is applied before the image needing it is deployed. The pipeline already does this and the playbooks state it, but the spec never said so — found by checking the playbooks against the specs, which is the drift this change's design predicted. An unstated requirement is one a later change may quietly reverse.
 
 ## Impact
 

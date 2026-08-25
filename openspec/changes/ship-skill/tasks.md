@@ -39,4 +39,4 @@
 - [ ] 6.1 Drive one change end to end with the skill rather than by hand, in the testbed; verify the skill determined each stage from the tools without being told where it was
 - [ ] 6.2 Interrupt that change mid-flight and invoke the skill fresh; verify it resumes from the tools rather than from anything it remembered
 - [ ] 6.3 Exhaust a change's invocation budget deliberately; verify it lands in `blocked` and that a human action refills it
-- [ ] 6.4 Check every playbook against the archived pipeline specs; verify no playbook claims behaviour the pipeline does not have, which is the drift the design flags as likely
+- [x] 6.4 Check every playbook against the archived pipeline specs; verify no playbook claims behaviour the pipeline does not have, which is the drift the design flags as likely
