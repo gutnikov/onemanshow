@@ -4,7 +4,7 @@
 
 - [x] 1.1 A workflow that moves a change to `staging` and starts the validation when `check` and the build are green on its commit. Verify by pushing a passing commit on a change in `dev` and observing the label move and the validation start with nobody asking
 - [x] 1.2 A workflow that records the validation's outcome in the thread — the stand's address on green, what failed and where on red — and notifies only on red or on green-awaiting-approval. Verify both paths by forcing each outcome
-- [ ] 1.3 A workflow that closes a ticket as not planned when its pull request is closed unmerged. Verify by closing a draft pull request and observing the ticket close with that reason and no other change
+- [x] 1.3 A workflow that closes a ticket as not planned when its pull request is closed unmerged. Verify by closing a draft pull request and observing the ticket close with that reason and no other change
 
 ## 2. The merge, where the guards can refuse
 
