@@ -25,14 +25,14 @@
 
 ## 4. Bootstrap
 
-- [ ] 4.1 `playbooks/init.md`: comparing needed roles against declared ones and creating ordered work for the difference; verify running it twice produces no duplicate work
-- [ ] 4.2 Make it clear the template's planning history on first run; verify a fresh project created from the template ends with an empty planning directory
-- [ ] 4.3 Treat a declared-but-empty credential as unconfigured; verify with a role whose secret exists and is blank, which is how a role appears configured while doing nothing
+- [x] 4.1 `playbooks/init.md`: comparing needed roles against declared ones and creating ordered work for the difference; verify running it twice produces no duplicate work
+- [x] 4.2 Make it clear the template's planning history on first run; verify a fresh project created from the template ends with an empty planning directory
+- [x] 4.3 Treat a declared-but-empty credential as unconfigured; verify with a role whose secret exists and is blank, which is how a role appears configured while doing nothing
 
 ## 5. Templates
 
-- [ ] 5.1 Write the thread templates as records for a reader arriving cold, not as instructions; verify each one would be useful to a person opening the thread with no memory of the incident
-- [ ] 5.2 Cover the five events that need judgement and the events that only need recording; verify no template implies the agent will be woken by it, since it will not
+- [x] 5.1 Write the thread templates as records for a reader arriving cold, not as instructions; verify each one would be useful to a person opening the thread with no memory of the incident
+- [x] 5.2 Cover the five events that need judgement and the events that only need recording; verify no template implies the agent will be woken by it, since it will not
 
 ## 6. Verification
 
