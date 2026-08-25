@@ -1,0 +1,63 @@
+name: rollback
+description: >
+  Returns production one step and refuses to go further. Shared by the release
+  workflow, which uses it when smoke fails, and by the manual rollback workflow -
+  the refusals are the substance here and must not exist in two copies.
+inputs:
+  url: { description: Address of production, required: true }
+runs:
+  using: composite
+  steps:
+    # Refusing a rollback of a rollback needs no stored flag: production equals
+    # main when nothing is unresolved, so production being behind main IS the
+    # record that one is already in effect. Automation does not fix its own fix.
+    - shell: sh
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -u
+        if ! out="$(docker run --rm -v "$PWD:/workdir" -v "$HOME/.ssh:/root/.ssh:ro" \
+                     -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER \
+                     -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
+                     ghcr.io/basecamp/kamal:v2.12.0 app version 2>&1)"; then
+          echo "could not read the deployed version:" >&2
+          printf '%s\n' "$out" >&2
+          exit 1
+        fi
+        deployed="$(printf '%s\n' "$out" | grep -oE '^[0-9a-f]{40}' | tail -1 || true)"
+        main="$(git rev-parse origin/main)"
+        echo "deployed=$deployed main=$main"
+        if [ -z "$deployed" ]; then
+          echo "refusing: cannot tell what production is running" >&2
+          exit 1
+        fi
+        if [ "$deployed" != "$main" ]; then
+          echo "::error::Production is already behind main, so a rollback is unresolved." \
+               "This needs a person: rolling back again only moves further from main."
+          exit 1
+        fi
+
+    - shell: sh
+      run: |
+        docker run --rm -v "$PWD:/workdir" -v "$HOME/.ssh:/root/.ssh:ro" \
+          -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER \
+          -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
+          ghcr.io/basecamp/kamal:v2.12.0 rollback
+
+    # The cascade guard. If the previous version fails too, the cause is not the
+    # image - most likely a migration already applied that older code cannot work
+    # against - and stepping further back never terminates.
+    - id: verify
+      shell: sh
+      continue-on-error: true
+      env:
+        SHIP_URL: ${{ inputs.url }}
+      run: ./ship/smoke
+
+    - shell: sh
+      if: steps.verify.outcome == 'failure'
+      run: |
+        echo "::error::The rolled-back version also fails verification." \
+             "No further rollback will be attempted: stepping back cannot help" \
+             "when the schema has moved. A person must decide."
+        exit 1

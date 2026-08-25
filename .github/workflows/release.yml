@@ -1,8 +1,9 @@
 # Production release by promotion.
 #
-# The image is pulled, never rebuilt. Builds are not bit-reproducible, so a
-# rebuilt image is not the artifact that passed validation and the invariant
-# would be quietly false rather than loudly broken.
+# The image is pulled, never rebuilt: builds are not bit-reproducible, so a
+# rebuilt image is not the artifact that passed validation, and the invariant
+# would be quietly false rather than loudly broken. If smoke fails afterwards the
+# release rolls itself back, once, and says so.
 name: release
 
 on:
@@ -13,69 +14,95 @@ on:
         required: true
         type: string
       sha: { required: true, type: string }
-      url: { description: Address of production, required: true, type: string }
+      registry_user: { required: true, type: string }
+      host: { required: true, type: string }
+      domain: { description: Production host name, required: true, type: string }
+      host_key:
+        description: known_hosts line(s) for the machine, from ssh-keyscan. Not a secret.
+        required: false
+        type: string
+        default: ""
     secrets:
-      registry_user: { required: true }
-      registry_token: { required: true }
-      age_key: { required: true }
-      ssh_key: { required: true }
-      host: { required: true }
-      sentry_token: { required: false }
+      SOPS_AGE_KEY: { required: true }
+      SSH_PRIVATE_KEY: { required: true }
 
 jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      KAMAL_REGISTRY_PASSWORD: ${{ secrets.registry_token }}
-      SOPS_AGE_KEY: ${{ secrets.age_key }}
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+      SHIP_IMAGE: ${{ inputs.image }}
+      SHIP_HOST: ${{ inputs.host }}
+      SHIP_DOMAIN: ${{ inputs.domain }}
+      SHIP_REGISTRY_USER: ${{ inputs.registry_user }}
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
-      - run: gem install kamal -v 2.5.3 --no-document
 
-      - uses: docker/login-action@v3
+      - name: install sops
+        run: |
+          curl -fsSL -o /tmp/sops https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64
+          sudo install -m 0755 /tmp/sops /usr/local/bin/sops
+
+      - uses: gutnikov/onemanshow/.github/actions/ssh-agentless@main
         with:
-          username: ${{ secrets.registry_user }}
-          password: ${{ secrets.registry_token }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ inputs.host }}
+          host_key: ${{ inputs.host_key }}
 
-      - name: authorise ssh
+      # Values decrypted here are not masked by Actions, which masks only what
+      # came from secrets.*, so each is registered before export.
+      - name: read production credentials
         run: |
-          mkdir -p ~/.ssh
-          printf '%s' "${{ secrets.ssh_key }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${{ secrets.host }}" >> ~/.ssh/known_hosts
+          set -eu
+          read_secret() {
+            v="$(sops -d --extract "[\"$1\"]" "secrets/prod.yaml")"
+            echo "::add-mask::$v"
+            echo "$2=$v" >> "$GITHUB_ENV"
+          }
+          read_secret REGISTRY_TOKEN_RO KAMAL_REGISTRY_PASSWORD
+          read_secret DATABASE_URL DATABASE_URL
+          read_secret POSTGRES_PASSWORD POSTGRES_PASSWORD
+          read_secret DATABASE_URL_TUNNEL DATABASE_URL_TUNNEL
 
-      # Fail rather than rebuild. Recovering by rebuilding would produce an
+      # Fail rather than rebuild: recovering by rebuilding would deploy an
       # artifact nobody verified.
-      - name: promote the validated artifact
+      - name: the validated artifact must exist
         run: |
-          docker pull "${{ inputs.image }}:${{ inputs.sha }}"
-          echo "digest=$(docker image inspect --format '{{index .RepoDigests 0}}' \
-            "${{ inputs.image }}:${{ inputs.sha }}")"
-
-      # Tagging the release with the commit is what lets the observation window
-      # ask "are there new issues in this release?" - a question that stays
-      # meaningful at the traffic volume an indie product actually has.
-      - name: mark the release
-        if: ${{ secrets.sentry_token != '' }}
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.sentry_token }}
-        run: npx @sentry/cli releases new "${{ inputs.sha }}"
+          set -eu
+          sops -d --extract '["REGISTRY_TOKEN_RO"]' secrets/prod.yaml \
+            | docker login -u '${{ inputs.registry_user }}' --password-stdin
+          docker buildx imagetools inspect \
+            "${{ inputs.image }}:${{ inputs.sha }}-production" > /dev/null
+          echo "promoting ${{ inputs.sha }}-production"
 
       - name: migrate production
-        run: .github/scripts/hook migrate
+        run: |
+          ssh -f -N -L 5432:localhost:5432 "root@${{ inputs.host }}"
+          DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/migrate
 
       - name: deploy
-        run: kamal deploy -d production --version "${{ inputs.sha }}"
+        uses: gutnikov/onemanshow/.github/actions/kamal@main
+        with: { args: "deploy --skip-push --version ${{ inputs.sha }}-production" }
 
       - name: smoke
-        env: { SHIP_URL: "${{ inputs.url }}" }
-        run: .github/scripts/hook smoke
+        id: smoke
+        continue-on-error: true
+        env: { SHIP_URL: "https://${{ inputs.domain }}" }
+        uses: gutnikov/onemanshow/.github/actions/run-hook@main
+        with: { name: smoke }
 
-      - name: mark the deploy
-        if: ${{ success() && secrets.sentry_token != '' }}
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.sentry_token }}
-        run: npx @sentry/cli releases deploys "${{ inputs.sha }}" new -e production
+      - name: roll back, once, if production is not healthy
+        if: steps.smoke.outcome == 'failure'
+        uses: gutnikov/onemanshow/.github/actions/rollback@main
+        with: { url: "https://${{ inputs.domain }}" }
+
+      - name: report the incident
+        if: steps.smoke.outcome == 'failure'
+        run: |
+          echo "::error::Smoke failed after deploying ${{ inputs.sha }}." \
+               "Production was rolled back one step. This is an incident, not a retry."
+          exit 1
