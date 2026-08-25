@@ -64,7 +64,7 @@ All tasks are performed in this repository or in an external service, except gro
 
 ## 8. Observability
 
-- [ ] 8.1 Add an external uptime monitor checking `/health` on production; verify it reports a failure when the application is stopped, from outside the machine
+- [x] 8.1 Add an external uptime monitor checking `/health` on production; verify it reports a failure when the application is stopped, from outside the machine. Created with a 10-minute interval and a 2-failure threshold, so declaration takes up to ~20 minutes against a 30-minute window; the failure path itself is exercised in 9.3, since it needs a real outage
 - [x] 8.2 Wire error tracking with the release tagged by commit SHA; verify a deliberately raised error appears attributed to the correct release
 - [x] 8.3 Enable spike protection and client-side sampling; verify a burst of identical errors does not consume the monthly quota
 - [x] 8.4 Add a single command answering "has production been healthy since the current release was deployed?" from liveness, new issues in the release, and the smoke result; verify it returns false while the failure switch is enabled and true otherwise

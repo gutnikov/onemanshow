@@ -6,6 +6,10 @@ description: >
   unchecked rather than as healthy.
 inputs:
   release: { description: Commit of the release being observed, required: true }
+  liveness_source:
+    description: Which external monitor asserts liveness. Empty means none is configured, and the check reports itself unchecked rather than healthy.
+    required: false
+    default: ""
   environment:
     description: Which environment to ask about. Both run the same release, so without this an error raised on staging counts against production.
     required: false
@@ -17,5 +21,6 @@ runs:
       env:
         RELEASE: ${{ inputs.release }}
         SENTRY_ENVIRONMENT: ${{ inputs.environment }}
+        LIVENESS_SOURCE: ${{ inputs.liveness_source }}
         ACTION_PATH: ${{ github.action_path }}
       run: '"$ACTION_PATH/health-window" "$RELEASE"'
