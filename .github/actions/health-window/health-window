@@ -12,6 +12,10 @@
 set -eu
 
 ORG="${SENTRY_ORG:-}"
+# Issues are attributed to a release, and both environments run the same
+# release - so without an environment filter an error deliberately raised on
+# staging counts against production's window. Observed exactly that.
+ENVIRONMENT="${SENTRY_ENVIRONMENT:-production}"
 PROJECT="${SENTRY_PROJECT:-}"
 RELEASE="${1:?usage: health-window <release-sha>}"
 SMOKE="${SMOKE_RESULT:-unknown}"
@@ -20,7 +24,7 @@ verdict=healthy
 say() { printf '%s\n' "$*"; }
 unhealthy() { verdict=unhealthy; say "  UNHEALTHY: $1"; }
 
-say "release ${RELEASE}"
+say "release ${RELEASE} in ${ENVIRONMENT}"
 
 # --- smoke, from the deploy that put this release live -----------------------
 case "$SMOKE" in
@@ -31,7 +35,7 @@ esac
 
 # --- new issues attributed to this release -----------------------------------
 if [ -n "$ORG" ] && [ -n "$PROJECT" ] && [ -n "${SENTRY_READ_TOKEN:-}" ]; then
-  url="https://sentry.io/api/0/projects/${ORG}/${PROJECT}/issues/?query=first-release%3A${RELEASE}&statsPeriod=24h"
+  url="https://sentry.io/api/0/projects/${ORG}/${PROJECT}/issues/?query=first-release%3A${RELEASE}&environment=${ENVIRONMENT}&statsPeriod=24h"
   if ! body="$(curl -sS -f -H "Authorization: Bearer ${SENTRY_READ_TOKEN}" "$url")"; then
     unhealthy "could not reach error tracking - treat as unknown, not as fine"
   else
@@ -39,9 +43,11 @@ if [ -n "$ORG" ] && [ -n "$PROJECT" ] && [ -n "${SENTRY_READ_TOKEN:-}" ]; then
     if [ "$count" -gt 0 ]; then
       unhealthy "$count new issue(s) first seen in this release"
       printf '%s' "$body" | python3 -c '
-import json,sys
-for i in json.load(sys.stdin)[:5]:
-    print(f"    - {i[\"title\"][:90]}  ({i[\"count\"]} events)")'
+import json, sys
+for issue in json.load(sys.stdin)[:5]:
+    title = issue["title"][:90]
+    events = issue["count"]
+    print("    - " + title + "  (" + str(events) + " events)")'
     else
       say "  errors: no new issues in this release"
     fi

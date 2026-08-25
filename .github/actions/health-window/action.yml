@@ -6,11 +6,16 @@ description: >
   unchecked rather than as healthy.
 inputs:
   release: { description: Commit of the release being observed, required: true }
+  environment:
+    description: Which environment to ask about. Both run the same release, so without this an error raised on staging counts against production.
+    required: false
+    default: production
 runs:
   using: composite
   steps:
     - shell: sh
       env:
         RELEASE: ${{ inputs.release }}
+        SENTRY_ENVIRONMENT: ${{ inputs.environment }}
         ACTION_PATH: ${{ github.action_path }}
       run: '"$ACTION_PATH/health-window" "$RELEASE"'
