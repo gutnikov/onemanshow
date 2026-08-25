@@ -24,3 +24,28 @@ The guard for a green pipeline SHALL be checked against the commit that was vali
 #### Scenario: A run is mistaken for evidence
 - **WHEN** the green-pipeline guard is evaluated for a change whose validation was dispatched
 - **THEN** the sha the run was given is what is checked, and the branch the run reports as its own commit is not accepted in its place
+
+### Requirement: Production and the main branch agree
+After a successful release the commit running in production SHALL equal the most recent commit on main that touched a **deployable** path. Commits that touch only documentation, planning artifacts, pipeline wiring, project configuration or provisioning scripts SHALL NOT release.
+
+This corrects an overstatement in the previous version of this requirement, which said that releasing on a documentation commit deployed an unvalidated image to production. It does not, and cannot: the release promotes a pre-validated artifact and refuses to build one, so a commit that never went through a pull request has no image and the release **fails** at the promotion check. What actually happens is a red release on every close, and production left unequal to main's tip — which then trips this very guard and blocks the next change until someone reconciles it by hand.
+
+That is still worth preventing, and for a reason the overstatement obscured: a release that is red every time a change closes is red as a matter of routine, and routine red is not read. The pipeline's own history contains a stretch where production sat three commits behind main behind exactly this signal.
+
+The set of ignored paths SHALL be expressed as an exclusion list rather than a list of deployable paths, because the two constructions fail differently. A path missing from an exclusion list produces a release that fails loudly at promotion. A path missing from a list of deployable paths produces a real change that never deploys, while this guard — computing the last deployable commit from the same list — reports agreement. One failure announces itself; the other is silent and satisfies the check meant to catch it.
+
+#### Scenario: Checking pipeline health
+- **WHEN** the deployed image tag is compared with the most recent deployable commit on main
+- **THEN** they are equal whenever no release is in flight and no rollback is unresolved
+
+#### Scenario: The closing archive commit
+- **WHEN** a change is archived after its observation window closes
+- **THEN** no release runs, and production continues to run the artifact that was validated
+
+#### Scenario: A change follows a documentation commit
+- **WHEN** the next change's merge guards are checked and main's tip is a documentation commit
+- **THEN** production matching the last deployable commit satisfies the guard, and the tip being ahead is not treated as an unresolved rollback
+
+#### Scenario: A non-deployable path was not excluded
+- **WHEN** a commit touching only project configuration is pushed and the exclusion list does not cover it
+- **THEN** the release fails at the promotion check because no validated image exists for that commit, rather than an image being built for it

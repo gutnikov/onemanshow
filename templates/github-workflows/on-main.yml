@@ -1,12 +1,19 @@
 # Instance wiring: replace every REPLACE_ME and commit this to your own repo.
 #
-# paths-ignore is load-bearing, not tidiness. Without it any commit to main
-# releases - including the documentation commit that closes a change, which
-# would build a NEW image from that commit and deploy it to production having
-# never been through staging. That breaks "deployed image == validated
-# artifact", and it reopens an observation window with nobody observing.
-# A rebuilt image is not the artifact that passed validation even when the
-# code in it is identical, because builds are not bit-reproducible.
+# paths-ignore is load-bearing, not tidiness. Without it every commit to main
+# releases, including the documentation commit that closes a change - and that
+# release FAILS, because the release promotes a pre-validated image and refuses
+# to build one, so a commit that never went through a pull request has no image
+# to promote. The damage is not a bad deploy, it is a red release every time a
+# change closes plus production left unequal to main's tip, which trips the
+# fourth merge guard and blocks the next change. Red as a matter of routine is
+# red nobody reads; this pipeline once sat three commits behind production
+# behind exactly that signal.
+#
+# Keep this as an EXCLUSION list, never a list of deployable paths. A path
+# missing here fails loudly at promotion. A path missing from a deployable list
+# would mean a real change silently never deploys, while the guard - computed
+# from the same list - reports agreement.
 #
 # The consequence is that main's tip is not always what production runs. The
 # invariant is therefore "production equals the most recent commit on main
@@ -20,6 +27,9 @@ on:
       - 'openspec/**'
       - '.claude/**'
       - '.github/**'
+      - 'templates/**'
+      - 'provision/**'
+      - 'ship.yml'
       - '**/*.md'
       - LICENSE
   workflow_dispatch:

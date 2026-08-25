@@ -41,13 +41,20 @@ Green at the end of the window: close the ticket as completed, run openspec's
 sync and archive, and **take the next change from the queue**.
 
 The archive is a documentation commit, and the release trigger ignores
-documentation paths, so it does not deploy. That is not incidental. While the
-trigger fired on every push, this closing step built a new image from the
-archive commit and shipped it to production having never been through staging —
-the skill's own last move broke the invariant the rest of it protects, every
-time, and reopened an observation window with nobody observing. If you are
-working in a project whose trigger has no path filter, fix the trigger before
-archiving. That last part is
+documentation paths, so no release runs. That is not incidental. While the
+trigger fired on every push, this closing step started a release that then
+failed — the release promotes a validated image and refuses to build one, and
+no image exists for a commit that never went through a pull request. So the
+harm was never a bad deploy. It was a red release at the close of every change,
+and production left unequal to main's tip, which trips the fourth merge guard
+and blocks whatever comes next.
+
+Both parts of that matter. A signal that is red every single time is a signal
+nobody reads, and this pipeline once sat three commits behind production behind
+exactly that. If you are working in a project whose trigger has no path filter,
+fix the trigger before archiving — and if a release has already gone red on a
+documentation commit, reconcile the guard before taking the next change rather
+than after it is blocked. That last part is
 easy to forget and its failure mode is the worst kind — everything looks healthy
 while the queue silently stops.
 

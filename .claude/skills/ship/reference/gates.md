@@ -110,12 +110,20 @@ with nothing wrong. What must match is the last commit that touched something
 deployable:
 
 ```
-git log -1 --format=%H origin/main -- . \
-  ':(exclude)openspec' ':(exclude).claude' ':(exclude).github' ':(exclude)*.md'
+git log -1 --format=%H origin/main -- . ':(exclude)openspec' ':(exclude).claude' \
+  ':(exclude).github' ':(exclude)templates' ':(exclude)provision' \
+  ':(exclude)ship.yml' ':(exclude)*.md'
 ```
 
+Keep this list in step with the release trigger's `paths-ignore`, and read it
+from there rather than from memory — they are the same list, and the guard is
+wrong the moment they differ.
+
 Comparing against main's tip instead makes this guard refuse every change that
-follows a documentation commit. The merge must be a **fast-forward**: a
+follows a documentation commit. And when a release *has* gone red on a
+documentation commit — because the exclusion list did not cover it — this guard
+is what stops the next change, correctly. Reconcile it by excluding the path
+rather than by releasing the commit. The merge must be a **fast-forward**: a
 merge commit, a squash or a rebase produces a commit nobody built, leaving
 nothing to promote without rebuilding — and a rebuilt image is not the one that
 passed validation.
