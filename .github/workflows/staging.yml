@@ -130,10 +130,12 @@ jobs:
         uses: gutnikov/onemanshow/.github/actions/kamal@main
         with: { args: accessory boot db -d staging }
 
+      # The local port matches the remote one so that DATABASE_URL_TUNNEL in
+      # secrets stays the single source of truth for the address. Forwarding to
+      # a different local port means the workflow and the secret each hold half
+      # of it, and they drifted.
       - name: open a tunnel to the staging database
-        run: |
-          ssh -f -N -L 15433:localhost:5433 "root@${{ inputs.host }}"
-          echo "TUNNEL=postgres tunnel on 15433" >> "$GITHUB_ENV"
+        run: ssh -f -N -L 5433:localhost:5433 "root@${{ inputs.host }}"
 
       # Baseline: production's schema and data, produced by production's code.
       - name: migrate and seed at production's commit
@@ -173,8 +175,8 @@ jobs:
 
       - name: reopen the tunnel and seed at the commit under review
         run: |
-          pkill -f '15433:localhost:5433' || true
-          ssh -f -N -L 15433:localhost:5433 "root@${{ inputs.host }}"
+          pkill -f '5433:localhost:5433' || true
+          ssh -f -N -L 5433:localhost:5433 "root@${{ inputs.host }}"
           DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/migrate
           DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/seed
 
