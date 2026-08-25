@@ -38,6 +38,7 @@ jobs:
       SHIP_DOMAIN: ${{ inputs.domain }}
       SHIP_STAGING_DOMAIN: ${{ inputs.staging_domain }}
       SHIP_REGISTRY_USER: ${{ inputs.registry_user }}
+      SHIP_SSH_LOG_LEVEL: debug
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -81,6 +82,18 @@ jobs:
       # Piping this into tail once turned a failed container run into an empty
       # string and a green step - a silently wrong baseline is worse than a
       # broken one, so the result is now validated as a commit before use.
+      # Diagnostic: what the container actually sees. Six attempts at this step
+      # failed on a host key that was demonstrably pinned, so the question is
+      # whether the file reaches Net::SSH at all.
+      - name: what ssh material reaches the container
+        run: |
+          docker run --rm -v "$HOME/.ssh:/root/.ssh:ro" --entrypoint sh \
+            ghcr.io/basecamp/kamal:v2.12.0 -c '
+              echo "HOME=$HOME"; ls -la /root/.ssh
+              echo "--- config ---"; cat /root/.ssh/config 2>&1
+              echo "--- known_hosts (first field of each line) ---"
+              awk "{print \$1, \$2}" /root/.ssh/known_hosts 2>&1'
+
       - name: read the commit production is running
         id: prod
         run: |

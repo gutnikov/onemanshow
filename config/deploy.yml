@@ -19,10 +19,13 @@ ssh:
   keys_only: true
   keys:
     - /root/.ssh/id_ed25519
-  # Net::SSH ignores the OpenSSH client config unless told to read it, which is
-  # why a pinned known_hosts had no effect and it reported HostKeyUnknown for
-  # the very key that was pinned.
-  config: true
+  # config takes a list of paths, not a boolean - Net::SSH ignores the client
+  # config entirely unless the files are named, which is why a pinned
+  # known_hosts had no effect and it reported HostKeyUnknown for the very key
+  # that had been pinned.
+  config:
+    - /root/.ssh/config
+  log_level: <%= ENV.fetch("SHIP_SSH_LOG_LEVEL", "fatal") %>
 
 proxy:
   ssl: true
