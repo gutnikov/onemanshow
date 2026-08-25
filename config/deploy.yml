@@ -48,8 +48,13 @@ builder:
 env:
   clear:
     PORT: 3000
+    # The deliberate failure switch. Empty unless a change sets it, because
+    # enabling it must be a change that travels the pipeline rather than a knob
+    # somebody flips on a running container.
+    SHIP_BREAK_GREETING: <%= ENV.fetch("SHIP_BREAK_GREETING", "") %>
   secret:
     - DATABASE_URL
+    - SENTRY_DSN
 
 accessories:
   db:

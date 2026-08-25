@@ -1,0 +1,16 @@
+name: health window
+description: >
+  Answers whether production has been healthy since the current release was
+  deployed, from the smoke result, new issues attributed to the release, and an
+  external liveness check. Sources that are not configured report themselves as
+  unchecked rather than as healthy.
+inputs:
+  release: { description: Commit of the release being observed, required: true }
+runs:
+  using: composite
+  steps:
+    - shell: sh
+      env:
+        RELEASE: ${{ inputs.release }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: '"$ACTION_PATH/health-window" "$RELEASE"'

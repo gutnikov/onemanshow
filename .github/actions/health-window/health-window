@@ -1,0 +1,66 @@
+#!/bin/sh
+# Answers one question: has production been healthy since this release deployed?
+#
+# It asks about *new issues in this release* rather than an error rate, because
+# an indie product has almost no traffic: one error in three requests is a 33%
+# rate, and a quiet window may only mean nobody visited. "Did anything break
+# that was not broken before" survives any traffic volume.
+#
+# Every source is optional and says so when absent. A check that silently
+# degrades to "fine" is worse than no check, so an unconfigured source is
+# reported as unchecked and never counted as healthy.
+set -eu
+
+ORG="${SENTRY_ORG:-}"
+PROJECT="${SENTRY_PROJECT:-}"
+RELEASE="${1:?usage: health-window <release-sha>}"
+SMOKE="${SMOKE_RESULT:-unknown}"
+
+verdict=healthy
+say() { printf '%s\n' "$*"; }
+unhealthy() { verdict=unhealthy; say "  UNHEALTHY: $1"; }
+
+say "release ${RELEASE}"
+
+# --- smoke, from the deploy that put this release live -----------------------
+case "$SMOKE" in
+  success) say "  smoke: passed" ;;
+  failure) unhealthy "smoke failed after deploy" ;;
+  *)       say "  smoke: not reported" ;;
+esac
+
+# --- new issues attributed to this release -----------------------------------
+if [ -n "$ORG" ] && [ -n "$PROJECT" ] && [ -n "${SENTRY_READ_TOKEN:-}" ]; then
+  url="https://sentry.io/api/0/projects/${ORG}/${PROJECT}/issues/?query=first-release%3A${RELEASE}&statsPeriod=24h"
+  if ! body="$(curl -sS -f -H "Authorization: Bearer ${SENTRY_READ_TOKEN}" "$url")"; then
+    unhealthy "could not reach error tracking - treat as unknown, not as fine"
+  else
+    count="$(printf '%s' "$body" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
+    if [ "$count" -gt 0 ]; then
+      unhealthy "$count new issue(s) first seen in this release"
+      printf '%s' "$body" | python3 -c '
+import json,sys
+for i in json.load(sys.stdin)[:5]:
+    print(f"    - {i[\"title\"][:90]}  ({i[\"count\"]} events)")'
+    else
+      say "  errors: no new issues in this release"
+    fi
+  fi
+else
+  say "  errors: not checked (error tracking is not configured)"
+fi
+
+# --- liveness, which must come from outside the machine ----------------------
+if [ -n "${LIVENESS_URL:-}" ]; then
+  if curl -sS -f -o /dev/null "${LIVENESS_URL}"; then
+    say "  liveness: reporting up"
+  else
+    unhealthy "liveness reports down"
+  fi
+else
+  say "  liveness: NOT CHECKED - no external monitor is configured, so the one"
+  say "            signal that survives the machine dying is missing"
+fi
+
+say "verdict: ${verdict}"
+[ "$verdict" = healthy ]
