@@ -17,7 +17,17 @@ test('page renders a greeting', { tag: '@smoke' }, async ({ page }) => {
 test('readiness endpoint reports ready', { tag: '@smoke' }, async ({ request }) => {
   const response = await request.get('/health');
   expect(response.status()).toBe(200);
-  expect(await response.json()).toEqual({ ready: true });
+  const body = await response.json();
+  // toMatchObject, not toEqual. Exact equality on a health payload makes every
+  // additive field a smoke failure - which is what happened the first time this
+  // endpoint gained one, in the change that added it.
+  expect(body).toMatchObject({ ready: true });
+  // The deployed commit, asserted as a shape rather than a value: this runs
+  // against production's data on the migration-safety pass, where asserting on
+  // content would fail any change that touches fixtures. The identity is not
+  // content - it comes from the image - so checking it is present and looks
+  // like a commit belongs in the smoke set.
+  expect(body.release).toMatch(/^[0-9a-f]{40}$/);
 });
 
 /** Staging only: staging is seeded, so the exact value is known. */

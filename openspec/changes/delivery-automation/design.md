@@ -107,6 +107,16 @@ the work already done rather than done twice.
 Roll back by disabling a workflow. The transition returns to being carried by a
 person, which is where it is today.
 
+**One hand-merge is unavoidable, and it is the first one.** The guard that
+production and main agree asks production what it is running, so it refuses
+while production does not answer — and the change that teaches it to answer is
+subject to that guard. The first deployment therefore goes in with the guards
+read by a person rather than enforced, which is exactly the state everything
+before this change was in. Every merge after it is automatic. This is a
+migration step, not an exception to the rule: an exception would be a switch
+that lets the guard pass on an unknown answer, and that switch would then exist
+for ever.
+
 ## Open Questions
 
 - The numbers: how many automatic actions a change gets, and how long the window
