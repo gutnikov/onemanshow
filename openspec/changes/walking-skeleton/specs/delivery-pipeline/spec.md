@@ -146,9 +146,15 @@ Immediately after deploying to production the pipeline SHALL run `ship/smoke` ag
 ### Requirement: Rollback is bounded to one step
 Rolling back SHALL return production to the immediately preceding image and SHALL NOT continue stepping backwards. If the rolled-back state also fails verification, the pipeline SHALL stop and require human involvement.
 
+Stepping back an image restores the artifact and nothing else. Configuration is supplied at deploy time from the repository, so a rollback boots the previous image against the *current* configuration - which means a fault that lives in configuration survives the rollback. Restoring configuration requires a revert that travels the pipeline, which is the second step of a rollback and not merely bookkeeping.
+
 #### Scenario: The previous version is healthy
 - **WHEN** production is rolled back one step and verification passes
 - **THEN** service is restored and the change that caused the incident is marked as requiring human attention
+
+#### Scenario: The fault lives in configuration
+- **WHEN** a change breaks production through configuration rather than code and production is rolled back one step
+- **THEN** the previous image runs against the same configuration and still fails, and the pipeline stops rather than stepping back further - the remedy is a revert through the pipeline, which restores the configuration
 
 #### Scenario: The previous version also fails
 - **WHEN** production is rolled back one step and verification still fails

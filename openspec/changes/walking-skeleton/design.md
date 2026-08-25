@@ -161,6 +161,24 @@ The alternative was a second machine, which is what Kamal's destination model ac
 - **Isolation between environments is by credential, not by network** → Measured on the deployed machine: a container in staging opens a TCP connection to the production database successfully, because both are on the deploy tool's shared container network. Only distinct passwords stop it, and staging is precisely where deliberately broken code runs. Separate volumes hold, so the reset path is safe as designed; the network claim was mine and was wrong. Strengthening it means giving each environment its own container network, which is possible but not done - so the guarantee is stated at its real strength instead.
 - **A shared machine means a staging fault can affect production** → Mitigated by the three rules above, and structurally limited by exclusivity, which keeps the two from being busy at once.
 
+### Rolling back an image does not roll back configuration
+
+Observed during the deliberate outage. A change that switched on the failure path in production only - staging validated clean, because the switch was off there - reached production, failed its smoke check, and was rolled back one step. The rolled-back container, the previous good release, was still broken: it ran the previous *image* against the *current* configuration, because configuration comes from the repository at deploy time and a rollback does not rewind it.
+
+Two things follow. The cascade guard worked exactly as designed and stopped rather than stepping further back, which is the prediction we built it on - but the cause was configuration rather than a migration, which we had not accounted for. And the second step of the two-step rollback, the revert through the pipeline, turns out to be the only thing that restores configuration. It was justified by the prod-equals-main invariant; it is in fact load-bearing for correctness.
+
+The general shape is the one we already knew about the database and had not generalised: **anything that lives outside the artifact is not restored by rewinding the artifact.** Schema was the example we anticipated. Configuration is the one that actually bit.
+
+### A hand-kept list let a secret resolve to empty
+
+The same outage exposed something worse than the outage. Error reporting was silently off in production the whole time: the workflow decrypted the DSN, the deploy config listed it as a secret, and the references file named it - but the wrapper that runs the deploy tool forwarded a hand-written list of variables that did not include it. A missing name resolved to an empty value rather than an error, so three files agreed it was configured and the fourth quietly disagreed.
+
+The forwarded list is now derived from the file that declares the secrets, and a declared secret that is empty fails the step. Three places to keep in step became one.
+
+### The monitor did not notice a twelve-minute outage
+
+Also observed rather than predicted: production served errors for about twelve minutes and the external monitor never declared anything, because declaring needs two consecutive failures at ten-minute intervals. This is the timing limitation recorded earlier, now measured. Within-window health rests on the post-deploy smoke check; liveness is a slower, second line.
+
 ## Migration Plan
 
 Nothing exists yet, so this is a bootstrap rather than a migration. The ordering is forced by dependency: secrets, then registry, then the machine, then the pipeline. That sequence reaches a real production deploy; a domain, staging preparation, observability and automation follow afterwards and each merely lights up another stage.
