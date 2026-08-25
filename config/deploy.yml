@@ -11,6 +11,15 @@ servers:
   web:
     - <%= ENV.fetch("SHIP_HOST") %>
 
+# Kamal connects through Ruby's Net::SSH, which does not honour an OpenSSH
+# client config, so the key and the host-verification policy are stated here
+# rather than assumed from ~/.ssh/config. Host keys are still verified; the
+# entries come from ssh-keyscan and are supplied by the caller.
+ssh:
+  keys_only: true
+  keys:
+    - /root/.ssh/id_ed25519
+
 proxy:
   ssl: true
   host: <%= ENV.fetch("SHIP_DOMAIN") %>
