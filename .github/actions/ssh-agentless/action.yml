@@ -42,8 +42,12 @@ runs:
         fi
         chmod 600 "$HOME/.ssh/known_hosts"
 
-        printf 'Host *\n  StrictHostKeyChecking %s\n  UserKnownHostsFile %s/.ssh/known_hosts\n  IdentityFile %s/.ssh/id_ed25519\n' \
-          "$POLICY" "$HOME" "$HOME" > "$HOME/.ssh/config"
+        # No absolute paths here. This file is written on the runner but read
+        # inside a container, where the directory is mounted at a different
+        # place - an absolute runner path sends the reader to a file that does
+        # not exist there, and a pinned host key silently stops counting.
+        # The defaults resolve correctly in both, relative to each HOME.
+        printf 'Host *\n  StrictHostKeyChecking %s\n' "$POLICY" > "$HOME/.ssh/config"
         chmod 600 "$HOME/.ssh/config"
 
         ssh -o BatchMode=yes "root@$HOST" 'echo ssh ok'
