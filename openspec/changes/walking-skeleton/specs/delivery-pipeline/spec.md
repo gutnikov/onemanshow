@@ -74,7 +74,13 @@ Validating a change on staging SHALL answer two questions in two runs, because o
 - **THEN** the migration-safety run passes and the end-to-end suite fails
 
 ### Requirement: Reset must not be able to reach production
-The reset operation SHALL act only on a target whose identity marks it as the staging data plane, and SHALL refuse to act on any other target. Staging and production SHALL NOT share a database instance, so that resetting is the destruction of a separate volume rather than a command issued against a server that also serves production.
+The reset operation SHALL act only on a target whose identity marks it as the staging data plane, and SHALL refuse to act on any other target. Staging and production SHALL NOT share a database instance or a storage volume, so that resetting is the destruction of a separate volume rather than a command issued against a server that also serves production.
+
+Separation of storage is what this requirement guarantees. It does NOT guarantee network unreachability: where both environments run on one machine they may share a container network, in which case one environment can open a TCP connection to the other's database and is stopped only by not holding its credentials. Each environment SHALL therefore have its own database credentials, and the weaker guarantee SHALL be stated wherever the stronger one might be assumed.
+
+#### Scenario: One environment reaches for the other's database
+- **WHEN** a process in the staging environment opens a connection to the production database on a shared machine
+- **THEN** the connection may be established at the transport level but authentication fails, because the environments hold distinct credentials
 
 #### Scenario: Reset is pointed at a non-staging target
 - **WHEN** the reset operation is invoked with a target that does not match the staging identity

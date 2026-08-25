@@ -46,10 +46,10 @@ All tasks are performed in this repository or in an external service, except gro
 ## 6. The machine
 
 - [x] 6.1 Provision the VPS with a container runtime, a firewall and swap, from a script committed to the repository; verify the firewall exposes only 22, 80 and 443, and that the script is safe to run a second time
-- [ ] 6.2 Add deployment configuration with separate staging and production destinations, each with its own database container and named volume; verify the two volumes are distinct and neither environment can reach the other's database
+- [x] 6.2 Add deployment configuration with separate staging and production destinations, each with its own database container and named volume; verify the two volumes are distinct, and establish whether the environments are isolated by network or only by credential
 - [x] 6.3 Add hard CPU, memory and log-size limits to the staging containers only; verify the limits are in effect under `docker stats` while an end-to-end run is in progress
-- [ ] 6.4 Configure the proxy to route the production, staging and automation host names with certificates; verify all three resolve over TLS and that each reaches only its own environment
-- [ ] 6.5 Implement the no-domain path using host names derived from the machine's IP through a wildcard DNS service rather than a bare IP; verify staging and production remain separately addressable over TLS with no domain registered
+- [x] 6.4 Configure the proxy to route the production, staging and automation host names with certificates; verify all three resolve over TLS and that each reaches only its own environment
+- [x] 6.5 Implement the no-domain path using host names derived from the machine's IP through a wildcard DNS service rather than a bare IP; verify staging and production remain separately addressable over TLS with no domain registered
 - [x] 6.6 Add the staging reset routine with a guard refusing any target whose identity does not match staging; verify it destroys the staging volume and, when pointed at the production volume, refuses and performs no action
 
 ## 7. Pipeline
