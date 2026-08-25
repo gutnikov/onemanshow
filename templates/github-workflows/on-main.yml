@@ -30,6 +30,13 @@ on:
       - 'templates/**'
       - 'provision/**'
       - 'ship.yml'
+      # Secrets change what the container is given, not what the image
+      # contains, so a release has no artifact to promote for such a commit and
+      # fails. Excluded to stop the failed release - but a rotated credential
+      # then does not reach production until something redeploys the running
+      # version, and nothing looks wrong until the old credential is revoked.
+      - 'secrets/**'
+      - '.sops.yaml'
       - '**/*.md'
       - LICENSE
   workflow_dispatch:

@@ -1,0 +1,87 @@
+#!/bin/sh
+# The six guards, read from the tools and reported one by one.
+#
+# Reported individually on purpose. An aggregate verdict tells you a merge was
+# refused; it does not tell you which condition to go and fix, and the guard
+# that gets forgotten is the one nobody can see the state of.
+#
+# None of these was enforced by anything before this existed. All six were
+# satisfied on 2026-08-25 and none was checked - they held because the person
+# merging read them.
+set -eu
+
+TICKET="${1:?usage: merge-guards <ticket> <head-sha>}"
+HEAD="${2:?}"
+REPO="${GITHUB_REPOSITORY:?}"
+TRIGGER="${RELEASE_WORKFLOW:-.github/workflows/on-main.yml}"
+IGNORE="$("${ACTION_DIR}/deployable-excludes.py" "$TRIGGER")"
+failed=0
+ok()   { printf '  PASS  %-28s %s\n' "$1" "$2"; }
+bad()  { printf '  FAIL  %-28s %s\n' "$1" "$2"; failed=$((failed+1)); }
+
+# --- 1. approval recorded, by a person ---------------------------------------
+# The label carries the approval, so the question is who applied it. If
+# automation could apply it, the reservation of approval to a person would be
+# decoration - so the actor is checked, not just the label.
+actor="$(gh api "repos/${REPO}/issues/${TICKET}/timeline" --paginate \
+          -q '[.[] | select(.event == "labeled" and .label.name == "status:ready-to-release")] | last | .actor.login' \
+          2>/dev/null || true)"
+case "$actor" in
+  "" | null)          bad approval "no record of the ready-to-release label being applied" ;;
+  *"[bot]" | *"-bot") bad approval "applied by ${actor}, which is not a person" ;;
+  *)                  ok approval "applied by ${actor}" ;;
+esac
+
+# --- 2. the pipeline green on THIS commit ------------------------------------
+# Read from the mark the validation wrote, not from a run's own commit: a
+# dispatched run reports the branch it was dispatched from.
+if "${ACTION_DIR}/../validation-mark/validation-mark" check "$HEAD" >/dev/null 2>&1; then
+  ok validated "$HEAD passed both staging runs"
+else
+  bad validated "$HEAD carries no record of passing staging validation"
+fi
+
+# --- 3. a fast-forward is possible ------------------------------------------
+git fetch -q origin main
+if git merge-base --is-ancestor origin/main "$HEAD"; then
+  ok fast-forward "main is an ancestor of $HEAD"
+else
+  bad fast-forward "main has moved since $HEAD was validated - revalidate rather than rebuild"
+fi
+
+# --- 4. production equals the last deployable commit ------------------------
+# shellcheck disable=SC2086
+lastdep="$(git log -1 --format=%H origin/main -- . $IGNORE)"
+running="${PRODUCTION_COMMIT:-}"
+if [ -z "$running" ]; then
+  bad production "what production is running was not supplied - unknown is not agreement"
+elif [ "$running" = "$lastdep" ]; then
+  ok production "running $running, the last deployable commit"
+else
+  bad production "running ${running}, last deployable is ${lastdep} - unresolved rollback or a leaked release"
+fi
+
+# --- 5. no other change still under observation ------------------------------
+others="$(gh issue list --state open --label status:released --json number \
+            -q "[.[] | select(.number != ${TICKET})] | length")"
+if [ "$others" -eq 0 ]; then
+  ok observation "no other change is in released"
+else
+  bad observation "${others} other change(s) in released with an open window"
+fi
+
+# --- 6. no active incident ---------------------------------------------------
+blocked="$(gh issue list --state open --json number,labels \
+            -q '[.[] | select(any(.labels[].name; startswith("blocked:")))] | length')"
+if [ "$blocked" -eq 0 ]; then
+  ok incident "no ticket carries a blocked label"
+else
+  bad incident "${blocked} ticket(s) blocked - resolve before shipping another change"
+fi
+
+echo
+if [ "$failed" -gt 0 ]; then
+  echo "::error::${failed} of 6 merge guards refused"
+  exit 1
+fi
+echo "all 6 guards hold"

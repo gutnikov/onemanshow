@@ -2,14 +2,14 @@
 
 ## 1. The transitions that need no judgment
 
-- [ ] 1.1 A workflow that moves a change to `staging` and starts the validation when `check` and the build are green on its commit. Verify by pushing a passing commit on a change in `dev` and observing the label move and the validation start with nobody asking
-- [ ] 1.2 A workflow that records the validation's outcome in the thread — the stand's address on green, what failed and where on red — and notifies only on red or on green-awaiting-approval. Verify both paths by forcing each outcome
+- [x] 1.1 A workflow that moves a change to `staging` and starts the validation when `check` and the build are green on its commit. Verify by pushing a passing commit on a change in `dev` and observing the label move and the validation start with nobody asking
+- [x] 1.2 A workflow that records the validation's outcome in the thread — the stand's address on green, what failed and where on red — and notifies only on red or on green-awaiting-approval. Verify both paths by forcing each outcome
 - [ ] 1.3 A workflow that closes a ticket as not planned when its pull request is closed unmerged. Verify by closing a draft pull request and observing the ticket close with that reason and no other change
 
 ## 2. The merge, where the guards can refuse
 
-- [ ] 2.1 Read all six guards from the tools in one place, each reported by name with what it found. Verify by running it against the change of 2026-08-25, which satisfied all six, and confirming it says so per guard rather than in aggregate
-- [ ] 2.2 Make the green-pipeline guard check the sha the validation was given rather than the commit the run reports. Verify with a dispatched validation: the run reports the default branch, and the guard must still be evaluating the change's commit
+- [x] 2.1 Read all six guards from the tools in one place, each reported by name with what it found. Verify by running it against the change of 2026-08-25, which satisfied all six, and confirming it says so per guard rather than in aggregate
+- [x] 2.2 Make the green-pipeline guard check the sha the validation was given rather than the commit the run reports. Verify with a dispatched validation: the run reports the default branch, and the guard must still be evaluating the change's commit
 - [ ] 2.3 Fast-forward the merge when all six hold, and refuse naming the failing guard when one does not. Verify the refusal by deliberately leaving production behind the last deployable commit
 - [ ] 2.4 Verify a guard can actually fail: for each of the six, construct the state that violates it and confirm the merge is refused. A guard nobody has seen refuse is not known to work
 
@@ -21,21 +21,25 @@
 - [ ] 3.4 Report on every run, including runs that found nothing to do, so a stopped schedule is distinguishable from a quiet one. Verify by disabling the schedule and confirming the absence is noticeable
 - [ ] 3.5 An inbound dispatch endpoint for an external liveness signal, admitting only whitelisted fields. Verify by sending a payload containing free text and confirming none of it reaches the thread
 
-## 4. Bounding repetition
+## 4. Applying a change that is not an artifact
 
-- [ ] 4.1 Count a change's automatic actions from what the tools already record, and reset the count on any human action. Verify the reset by acting as a person mid-sequence
-- [ ] 4.2 Refuse an automatic action when the budget is exhausted, moving the change to `blocked` with the cause. Verify by exhausting it deliberately — the task this replaces was left open for years-equivalent because nothing could exhaust it, so the test is the point
-- [ ] 4.3 Keep the destructive limits separate and absolute: one rollback step, one merge per ticket, one production migration per deploy. Verify that a second attempt is refused rather than budgeted
+- [ ] 4.0 Give configuration a way to reach production. A change to `secrets/**` alters what the container is given at deploy time but produces no new image, so the release has nothing to promote and fails — which is what happened on 2026-08-25, unnoticed for twenty minutes, and was surfaced by the fourth guard rather than by anyone reading the red run. Excluding secrets from the trigger stops the failed release and leaves the real gap: a rotated credential does not reach production until something redeploys the running artifact, and until the old credential is revoked nothing looks wrong. Needs a path that redeploys the current version with current configuration — the rollback action already does something close. Verify by rotating a credential and observing production pick it up
 
-## 5. The skill catches up
+## 5. Bounding repetition
 
-- [ ] 5.1 Update `reference/gates.md` so the guards are described as enforced, and by what. Verify no playbook still tells the reader to check something automation now refuses
-- [ ] 5.2 Update `04-ready-for-dev.md`, `07-approve.md` and `09-stabilize.md` where they describe work automation now does. Verify by re-reading each as someone arriving cold: it must not claim credit for a transition it no longer performs, nor leave one unowned
-- [ ] 5.3 Move the wake and notification wording into `templates/`, versioned with the playbooks, since everything automation writes is read by the agent as context. Verify the templates contain no interpolation of an external payload
-- [ ] 5.4 Record in bootstrap that branch protection is required, since every guard here is bypassed by a direct push to main. Verify against a project set up from the template that a direct push is refused
+- [ ] 5.1 Count a change's automatic actions from what the tools already record, and reset the count on any human action. Verify the reset by acting as a person mid-sequence
+- [ ] 5.2 Refuse an automatic action when the budget is exhausted, moving the change to `blocked` with the cause. Verify by exhausting it deliberately — the task this replaces was left open for years-equivalent because nothing could exhaust it, so the test is the point
+- [ ] 5.3 Keep the destructive limits separate and absolute: one rollback step, one merge per ticket, one production migration per deploy. Verify that a second attempt is refused rather than budgeted
 
-## 6. Verification
+## 6. The skill catches up
 
-- [ ] 6.1 Drive one change end to end with no person performing a transition other than the two gates. Verify each transition happened without being asked, and that the thread reads coherently to someone opening it cold
-- [ ] 6.2 Disable each workflow in turn and confirm the transition falls back to a person rather than the change becoming stuck. Verify that a partly-built reactive layer is slower rather than broken
-- [ ] 6.3 Perform every transition by hand while its workflow is enabled, and confirm the work is found already done rather than done twice
+- [ ] 6.1 Update `reference/gates.md` so the guards are described as enforced, and by what. Verify no playbook still tells the reader to check something automation now refuses
+- [ ] 6.2 Update `04-ready-for-dev.md`, `07-approve.md` and `09-stabilize.md` where they describe work automation now does. Verify by re-reading each as someone arriving cold: it must not claim credit for a transition it no longer performs, nor leave one unowned
+- [ ] 6.3 Move the wake and notification wording into `templates/`, versioned with the playbooks, since everything automation writes is read by the agent as context. Verify the templates contain no interpolation of an external payload
+- [ ] 6.4 Record in bootstrap that branch protection is required, since every guard here is bypassed by a direct push to main. Verify against a project set up from the template that a direct push is refused
+
+## 7. Verification
+
+- [ ] 7.1 Drive one change end to end with no person performing a transition other than the two gates. Verify each transition happened without being asked, and that the thread reads coherently to someone opening it cold
+- [ ] 7.2 Disable each workflow in turn and confirm the transition falls back to a person rather than the change becoming stuck. Verify that a partly-built reactive layer is slower rather than broken
+- [ ] 7.3 Perform every transition by hand while its workflow is enabled, and confirm the work is found already done rather than done twice
