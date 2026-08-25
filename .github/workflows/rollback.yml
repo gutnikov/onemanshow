@@ -21,6 +21,7 @@ on:
 jobs:
   rollback:
     runs-on: ubuntu-latest
+    permissions: { contents: read }
     env:
       SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
       SHIP_IMAGE: ${{ inputs.image }}

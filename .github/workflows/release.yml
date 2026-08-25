@@ -30,6 +30,9 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Declared, not inherited: the repository's ceiling is write so that the
+    # reactive layer can move labels, and a job that says nothing receives it.
+    permissions: { contents: read }
     env:
       SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
       SHIP_IMAGE: ${{ inputs.image }}

@@ -24,6 +24,7 @@ on:
 jobs:
   dump:
     runs-on: ubuntu-latest
+    permissions: { contents: read }
     services:
       scratch:
         image: postgres:17-alpine

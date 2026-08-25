@@ -29,6 +29,10 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    # Declared explicitly, not inherited. The repository's ceiling has to allow
+    # write for the promote job below to request it at all, and a job that says
+    # nothing then receives write it has no use for.
+    permissions: { contents: read }
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
     env:
