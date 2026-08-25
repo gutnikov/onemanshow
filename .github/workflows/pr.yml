@@ -12,15 +12,17 @@ on:
       image: { required: true, type: string }
       service: { description: Service name of the production destination, required: true, type: string }
       staging_service: { required: true, type: string }
+      registry_user: { description: Registry account, not a secret, required: true, type: string }
     secrets:
-      registry_user: { required: true }
-      age_key: { required: true }
+      # Named to match what a project actually holds, so a stub can use
+      # "secrets: inherit" and stay short.
+      SOPS_AGE_KEY: { required: true }
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     env:
-      SOPS_AGE_KEY: ${{ secrets.age_key }}
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
       SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
@@ -41,7 +43,7 @@ jobs:
       - name: log in with the write credential
         run: |
           sops -d --extract '["REGISTRY_TOKEN_RW"]' secrets/ci.yaml \
-            | docker login -u '${{ secrets.registry_user }}' --password-stdin
+            | docker login -u '${{ inputs.registry_user }}' --password-stdin
 
       # The machine is x86_64; runners are too, but the platform is pinned so a
       # build from an arm workstation produces the same thing.
