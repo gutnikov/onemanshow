@@ -27,10 +27,16 @@ unhealthy() { verdict=unhealthy; say "  UNHEALTHY: $1"; }
 say "release ${RELEASE} in ${ENVIRONMENT}"
 
 # --- smoke, from the deploy that put this release live -----------------------
+# Not reported is not the same as passed, and this file spent its first
+# paragraph saying so before treating it as passed anyway: a missing smoke
+# result produced a healthy verdict, in the source that most directly proves
+# the deploy worked. Whatever failed to hand it over - a step that did not run,
+# an output that did not reach here - the honest reading is unknown.
 case "$SMOKE" in
   success) say "  smoke: passed" ;;
   failure) unhealthy "smoke failed after deploy" ;;
-  *)       say "  smoke: not reported" ;;
+  unknown|"") unhealthy "smoke result was not reported - treat as unknown, not as fine" ;;
+  *)       unhealthy "unrecognised smoke result '${SMOKE}' - treat as unknown, not as fine" ;;
 esac
 
 # --- new issues attributed to this release -----------------------------------
