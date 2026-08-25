@@ -171,5 +171,9 @@ Rollback for this change is trivial: the testbed is disposable and nothing depen
 
 ## Open Questions
 
-- The per-ticket budget of automatic agent wake-ups, and the retry budget for a failed end-to-end run. Both were named illustratively (roughly fifteen and two) and both want data from the three trial changes rather than a guess. Neither affects the specs or the task breakdown.
+Answered by measurement rather than left open:
+
+**Actions minutes.** A complete change costs about six minutes of wall clock - 80 s for the pull-request stage, 158 s for staging, 105 s for release - which GitHub bills as roughly seven, rounding each job up to the minute. Against 2000 free minutes that is around 280 changes a month, comfortably more than a one-person project produces, and it leaves room for the retries and reruns that reality adds.
+
+**Budgets.** With a change costing about seven minutes, a per-ticket fuel budget of **fifteen** wake-ups is roughly two hours of pipeline time before a human is called - long enough for a genuinely iterative change, short enough that a loop cannot run all night. The e2e retry budget stays at **two**: a third attempt on the same commit has never told us anything the second did not, and staging is reset before each attempt so a retry is a real retry rather than a rerun on residue.
 - Whether centralised log collection is worth adding later. `kamal app logs` is sufficient for one machine, so this is deferrable without consequence.
