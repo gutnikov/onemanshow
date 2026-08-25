@@ -60,15 +60,29 @@ jobs:
 
       # Production's version tag carries a destination suffix; the commit is
       # what the baseline needs, so the suffix is stripped.
+      # Production's version tag carries a destination suffix; the commit is
+      # what the baseline needs, so the suffix is stripped.
+      #
+      # Piping this into tail once turned a failed container run into an empty
+      # string and a green step - a silently wrong baseline is worse than a
+      # broken one, so the result is now validated as a commit before use.
       - name: read the commit production is running
         id: prod
         run: |
-          v="$(docker run --rm -v "$PWD:/workdir" -v "$HOME/.ssh:/root/.ssh:ro" \
-                 -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER \
-                 -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
-                 ghcr.io/basecamp/kamal:2.12.0 app version | tail -1 | tr -d '\r')"
-          echo "sha=${v%-production}" >> "$GITHUB_OUTPUT"
-          echo "production runs ${v%-production}"
+          set -eu
+          out="$(docker run --rm -v "$PWD:/workdir" -v "$HOME/.ssh:/root/.ssh:ro" \
+                   -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER \
+                   -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
+                   ghcr.io/basecamp/kamal:v2.12.0 app version)"
+          v="$(printf '%s\n' "$out" | tail -1 | tr -d '\r')"
+          sha="${v%-production}"
+          case "$sha" in
+            "" | *[!0-9a-f]*)
+              echo "could not read production's version, got: $out" >&2
+              exit 1 ;;
+          esac
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "production runs $sha"
 
       - name: destroy the staging data plane
         uses: gutnikov/onemanshow/.github/actions/reset-staging@main
