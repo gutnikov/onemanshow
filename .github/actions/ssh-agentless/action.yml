@@ -1,18 +1,49 @@
 name: authorise ssh
 description: >
-  Writes a deploy key and a permissive host-key policy for the machine. Kamal
-  runs in a container, so it needs the key as a file rather than an agent socket.
+  Writes a deploy key and a host-key policy for the machine. Kamal runs in a
+  container, so it needs the key as a file rather than an agent socket.
 inputs:
   key: { description: Private key contents, required: true }
   host: { description: Machine to trust, required: true }
+  host_key:
+    description: >
+      known_hosts line(s) for the machine, as produced by ssh-keyscan. Not a
+      secret. When given, host keys are verified strictly. When omitted the
+      first connection is trusted blindly, which hands this key and the registry
+      credentials to anything answering at that address.
+    required: false
+    default: ""
 runs:
   using: composite
   steps:
+    # Inputs travel through env rather than ${{ }} inside the script: an
+    # interpolated value becomes part of the script text, where a private key can
+    # be echoed by a shell trace and where anything able to influence the value
+    # could run commands as this job.
     - shell: sh
+      env:
+        KEY: ${{ inputs.key }}
+        HOST: ${{ inputs.host }}
+        HOST_KEY: ${{ inputs.host_key }}
       run: |
+        set -eu
         mkdir -p "$HOME/.ssh"
-        printf '%s\n' "${{ inputs.key }}" > "$HOME/.ssh/id_ed25519"
+        printf '%s\n' "$KEY" > "$HOME/.ssh/id_ed25519"
         chmod 600 "$HOME/.ssh/id_ed25519"
-        printf 'Host *\n  StrictHostKeyChecking no\n  UserKnownHostsFile /dev/null\n  IdentityFile %s/.ssh/id_ed25519\n' "$HOME" > "$HOME/.ssh/config"
+
+        if [ -n "$HOST_KEY" ]; then
+          printf '%s\n' "$HOST_KEY" > "$HOME/.ssh/known_hosts"
+          POLICY=yes
+        else
+          : > "$HOME/.ssh/known_hosts"
+          POLICY=accept-new
+          echo "::warning::No host_key given: trusting the machine on first use." \
+               "Pin it with ssh-keyscan output so a substituted host is refused."
+        fi
+        chmod 600 "$HOME/.ssh/known_hosts"
+
+        printf 'Host *\n  StrictHostKeyChecking %s\n  UserKnownHostsFile %s/.ssh/known_hosts\n  IdentityFile %s/.ssh/id_ed25519\n' \
+          "$POLICY" "$HOME" "$HOME" > "$HOME/.ssh/config"
         chmod 600 "$HOME/.ssh/config"
-        ssh -o BatchMode=yes "root@${{ inputs.host }}" 'echo ssh ok'
+
+        ssh -o BatchMode=yes "root@$HOST" 'echo ssh ok'

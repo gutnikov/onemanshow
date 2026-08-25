@@ -11,7 +11,11 @@ runs:
   using: composite
   steps:
     - shell: sh
-      run: >-
-        ssh -o StrictHostKeyChecking=no "root@${{ inputs.host }}" 'sh -s'
-        < "${{ github.action_path }}/reset-staging"
-        "${{ inputs.volume }}" "${{ inputs.container }}"
+      env:
+        HOST: ${{ inputs.host }}
+        VOLUME: ${{ inputs.volume }}
+        CONTAINER: ${{ inputs.container }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        ssh "root@$HOST" 'sh -s' \
+          < "$ACTION_PATH/reset-staging" "$VOLUME" "$CONTAINER"

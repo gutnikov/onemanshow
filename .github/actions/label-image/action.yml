@@ -9,7 +9,10 @@ runs:
   using: composite
   steps:
     - shell: sh
-      run: >-
-        "${{ github.action_path }}/label-image"
-        "${{ inputs.image }}" "${{ inputs.sha }}"
-        "${{ inputs.service }}" "${{ inputs.destination }}"
+      env:
+        IMAGE: ${{ inputs.image }}
+        SHA: ${{ inputs.sha }}
+        SERVICE: ${{ inputs.service }}
+        DESTINATION: ${{ inputs.destination }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: '"$ACTION_PATH/label-image" "$IMAGE" "$SHA" "$SERVICE" "$DESTINATION"'

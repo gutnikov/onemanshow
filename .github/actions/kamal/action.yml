@@ -11,7 +11,15 @@ inputs:
 runs:
   using: composite
   steps:
+    # Inputs travel through env, never through ${{ }} inside the script. An
+    # interpolated input becomes part of the script text, so anything that can
+    # influence it can run commands as this job; passed as an environment
+    # variable it stays data. ARGS is deliberately unquoted because it is a
+    # command line and must word-split, but as a variable it cannot introduce
+    # command substitution.
     - shell: sh
+      env:
+        ARGS: ${{ inputs.args }}
       run: |
         docker run --rm \
           -v "$PWD:/workdir" \
@@ -19,4 +27,4 @@ runs:
           -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_STAGING_DOMAIN \
           -e SHIP_REGISTRY_USER -e KAMAL_REGISTRY_PASSWORD \
           -e DATABASE_URL -e POSTGRES_PASSWORD \
-          ghcr.io/basecamp/kamal:v2.12.0 ${{ inputs.args }}
+          ghcr.io/basecamp/kamal:v2.12.0 $ARGS

@@ -16,4 +16,7 @@ runs:
   using: composite
   steps:
     - shell: sh
-      run: '"${{ github.action_path }}/hook" "${{ inputs.name }}"'
+      env:
+        HOOK_NAME: ${{ inputs.name }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: '"$ACTION_PATH/hook" "$HOOK_NAME"'

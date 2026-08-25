@@ -11,6 +11,11 @@ runs:
   using: composite
   steps:
     - shell: sh
-      run: >-
-        "${{ github.action_path }}/verify-layers"
-        "${{ inputs.image }}" "${{ inputs.base }}" ${{ inputs.tags }}
+      env:
+        IMAGE: ${{ inputs.image }}
+        BASE: ${{ inputs.base }}
+        TAGS: ${{ inputs.tags }}
+        ACTION_PATH: ${{ github.action_path }}
+      # TAGS is unquoted so the list splits into arguments; as a variable it
+      # cannot introduce command substitution.
+      run: '"$ACTION_PATH/verify-layers" "$IMAGE" "$BASE" $TAGS'
