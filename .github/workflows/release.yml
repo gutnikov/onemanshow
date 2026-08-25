@@ -17,6 +17,7 @@ on:
       registry_user: { required: true, type: string }
       host: { required: true, type: string }
       domain: { description: Production host name, required: true, type: string }
+      service: { description: Service name of the production destination, required: true, type: string }
       host_key:
         description: known_hosts line(s) for the machine, from ssh-keyscan. Not a secret.
         required: false
@@ -98,7 +99,9 @@ jobs:
       - name: roll back, once, if production is not healthy
         if: steps.smoke.outcome == 'failure'
         uses: gutnikov/onemanshow/.github/actions/rollback@main
-        with: { url: "https://${{ inputs.domain }}" }
+        with:
+          url: "https://${{ inputs.domain }}"
+          service: ${{ inputs.service }}
 
       - name: report the incident
         if: steps.smoke.outcome == 'failure'

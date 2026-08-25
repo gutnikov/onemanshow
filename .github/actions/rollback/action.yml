@@ -5,6 +5,7 @@ description: >
   the refusals are the substance here and must not exist in two copies.
 inputs:
   url: { description: Address of production, required: true }
+  service: { description: Service name of the production destination, required: true }
 runs:
   using: composite
   steps:
@@ -42,12 +43,38 @@ runs:
         echo "nothing unresolved; proceeding with one step back"
         exit 0
 
+    # kamal rollback needs the version to go back to; it does not work out the
+    # previous one itself. The machine knows: the previous release's container is
+    # still there, stopped, and its name carries the version.
+    - id: previous
+      shell: sh
+      env:
+        HOST: ${{ env.SHIP_HOST }}
+        SERVICE: ${{ inputs.service }}
+      run: |
+        set -eu
+        versions="$(ssh "root@$HOST" \
+          "docker ps -a --filter label=service=$SERVICE --filter label=role=web \
+             --format '{{.CreatedAt}}|{{.Names}}' | sort -r | sed 's|.*|&|'")"
+        echo "containers on the machine:"
+        printf '%s\n' "$versions" | sed 's/^/  /'
+        prev="$(printf '%s\n' "$versions" | sed -n "2p" | sed "s|.*|&|" \
+                 | cut -d'|' -f2 | sed "s|^${SERVICE}-web-||")"
+        if [ -z "$prev" ]; then
+          echo "::error::No previous version exists on the machine, so there is nothing to roll back to."
+          exit 1
+        fi
+        echo "prev=$prev" >> "$GITHUB_OUTPUT"
+        echo "rolling back to $prev"
+
     - shell: sh
+      env:
+        PREV: ${{ steps.previous.outputs.prev }}
       run: |
         docker run --rm -v "$PWD:/workdir" -v "$HOME/.ssh:/root/.ssh:ro" \
           -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER \
           -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
-          ghcr.io/basecamp/kamal:v2.12.0 rollback
+          ghcr.io/basecamp/kamal:v2.12.0 rollback "$PREV"
 
     # The cascade guard. If the previous version fails too, the cause is not the
     # image - most likely a migration already applied that older code cannot work

@@ -12,6 +12,7 @@ on:
       registry_user: { required: true, type: string }
       host: { required: true, type: string }
       domain: { required: true, type: string }
+      service: { description: Service name of the production destination, required: true, type: string }
       host_key: { required: false, type: string, default: "" }
     secrets:
       SOPS_AGE_KEY: { required: true }
@@ -53,4 +54,6 @@ jobs:
           read_secret DATABASE_URL DATABASE_URL
           read_secret POSTGRES_PASSWORD POSTGRES_PASSWORD
       - uses: gutnikov/onemanshow/.github/actions/rollback@main
-        with: { url: "https://${{ inputs.domain }}" }
+        with:
+          url: "https://${{ inputs.domain }}"
+          service: ${{ inputs.service }}
