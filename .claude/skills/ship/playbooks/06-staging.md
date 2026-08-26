@@ -5,9 +5,14 @@ happen here and they prove different things — do not confuse them.
 
 ## Why there are two
 
-The baseline is production's schema **and production's data**, with this change's
-migration applied on top. That is what makes the migration path real rather than
-seeded past.
+The baseline is production's schema and the data **production's own code
+produces**, with this change's migration applied on top. That is what makes the
+migration path real rather than seeded past.
+
+Not production's actual data, which this said for a while and which was never
+true. The fixture is synthetic throughout, deliberately: the provider could copy
+production's data into the stand in seconds, and that would put real user data
+where a browser and a test suite reach it.
 
 But it also means the data present is not the data this change's fixtures
 describe. So:
@@ -17,9 +22,16 @@ migrated production baseline. It answers: did the migration break the
 application against data shaped like production's? It deliberately asserts
 nothing about *content*, because the content is not this change's.
 
-**Run two — feature correctness.** Reset, seed at this change's own commit, then
-the full end-to-end suite. Now the fixtures are the ones the tests were written
-against.
+**Run two — feature correctness.** The database is emptied, seeded at this
+change's own commit, and the full end-to-end suite runs. Now the fixtures are
+the ones the tests were written against.
+
+Emptied by the provider rather than by us, and **checked afterwards** — the
+pipeline asserts the database holds no tables. That is not ceremony. If emptying
+silently fails, the migration table survives, every migration counts as applied,
+the seed writes into the previous run's data, and the run is green and
+meaningless. The code this replaced removed a volume nothing was using and
+reported success for a whole run.
 
 Asserting on content in run one fails every change that touches fixtures,
 through no fault of its own. That mistake was made here once already.
@@ -40,6 +52,11 @@ your work and it is most of your value.
 **A flake.** The failure is in the harness, not the application: a timeout on a
 slow start, a race in the test, a network blip. Evidence: it fails somewhere
 unrelated to the diff, or the same test has failed before on unrelated changes.
+
+One concrete cause worth knowing: a managed database that has scaled to zero
+takes a second or two to wake, and the first request after a deploy pays it. A
+single timeout on the first request, with everything after it passing, is that
+and not your change.
 Re-run **once** — staging is reset before each attempt, so a retry is a real
 retry rather than a rerun on residue. Consult `reference/loops.md` before a
 second. Then `blocked:e2e`.

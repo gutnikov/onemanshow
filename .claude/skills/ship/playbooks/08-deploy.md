@@ -2,11 +2,24 @@
 
 Approval is in. This stage merges and releases.
 
-## Check the guards before merging
+## The guards refuse; you do not check them
 
-All six from `reference/gates.md`, and all six are readable from the tools. The
-one that gets forgotten is *the pipeline green on the current commit* — a green
-run on an earlier commit says nothing about this one.
+All six from `reference/gates.md` are read and **enforced** by the workflow that
+merges, reported one by one. So the ordinary case is that you arrive to find
+either a merge that happened or a named guard that refused — and your work is
+the second of those, not the first.
+
+Two of them refuse for reasons that read as something else:
+
+**Production and main disagree** usually means a commit reached main without
+travelling the pipeline, and its release failed for want of an image. The remedy
+is to exclude the path if it is not deployable, or to release it properly if it
+is — not to merge past the guard.
+
+**Not a fast-forward** means main moved after this change was validated. The
+remedy is to bring the branch up to date and let it revalidate. Note what that
+costs on purpose: the new commit withdraws the approval, because approval
+records that somebody approved, not which commit they were looking at.
 
 ## The merge is a fast-forward
 
@@ -23,8 +36,19 @@ means the validated commit becomes main's head unchanged.
 
 ## Then the pipeline releases
 
-Migrate production, promote the image, deploy, smoke. You do not do this by hand
-unless automation is absent.
+Migrate production, promote the image, deploy, **confirm readiness**, smoke. You
+do not do this by hand unless automation is absent.
+
+The readiness step is explicit rather than a property of the proxy's health
+check, and it is the one that catches a deployed image older than the schema it
+finds — the state a rollback leaves behind. A load-bearing check belongs where it
+can be seen failing.
+
+One surprise worth knowing: the merge **asks** for the release rather than
+causing it. A push made with the code host's own token raises no workflow
+events, which is how it prevents recursion, so an automated merge cannot trigger
+a release by pushing. If a merge lands and no release follows, that is the thing
+to look at.
 
 Two things to know about what promotion means here. The image carries
 destination-specific metadata, so the tag that reaches production is derived from
@@ -38,6 +62,18 @@ That is an incident, not a retry. `playbooks/rollback.md`.
 
 Do not re-run smoke hoping for green. If the page was broken a moment ago it is
 broken now, and the second run costs the time the rollback should have had.
+
+**Whether it rolls back automatically depends on the schema.** If the release
+changed no migration files, production is returned one step and a person is
+called. If it did — or if what production was running could not be established —
+nothing is rolled back and the change is marked `blocked:rollback`.
+
+That is arithmetic, not caution. Migrations run before the deploy, so after a
+release that added one the schema has already moved; rewinding the image leaves
+the previous code against a newer schema, which readiness refuses to call
+healthy. The rollback would fail its own health check and leave production broken
+a second way. What is needed there is a decision between forward-fixing and
+rolling the schema back too, and that is yours.
 
 ## If smoke passes
 
