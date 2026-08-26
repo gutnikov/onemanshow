@@ -15,6 +15,7 @@ between a degraded pipeline and one that looks fine while checking nothing.
 | task management | a status field, labels, two closing reasons | no state to read — the skill has nowhere to look |
 | messenger | carry the conversation and the human decisions | no interface; the terminal becomes the only way in |
 | secrets | keep credentials in the repository, encrypted | nothing can be deployed |
+| database | hold each environment's data, separately | **nothing runs at all** — the one role with no degraded form |
 | registry | hold one image unchanged between validation and release | promotion is unprovable; there is nothing to promote |
 | server hosting | run two environments and route by host name | no environments |
 | domain | give each environment its own name | names are derived from the machine's address instead — the pipeline runs |
