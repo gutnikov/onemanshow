@@ -17,8 +17,17 @@ runs:
   using: composite
   steps:
     # Refusing a rollback of a rollback needs no stored flag: production equals
-    # main when nothing is unresolved, so production being behind main IS the
-    # record that one is already in effect. Automation does not fix its own fix.
+    # the last deployable commit when nothing is unresolved, so production being
+    # behind it IS the record that one is already in effect. Automation does not
+    # fix its own fix.
+    #
+    # The last deployable commit, not main's tip. Those differ whenever main
+    # carries something that must not release - an archive commit, a change to
+    # the pipeline's own wiring - and merge guard 4 has always compared against
+    # the deployable one. This compared against the tip, so after any such commit
+    # a rollback refused with "production is already behind main" when production
+    # was exactly where it belonged. Two copies of "what production should equal",
+    # disagreeing; the list now comes from the same script the guard uses.
     - shell: sh
       env:
         ACTION_PATH: ${{ github.action_path }}
@@ -33,15 +42,19 @@ runs:
           exit 1
         fi
         deployed="$(printf '%s\n' "$out" | grep -oE '^[0-9a-f]{40}' | tail -1 || true)"
-        main="$(git rev-parse origin/main)"
-        echo "deployed=$deployed main=$main"
+        IGNORE="$("${ACTION_PATH}/../merge-guards/deployable-excludes.py" \
+                   "${RELEASE_WORKFLOW_FILE:-.github/workflows/on-main.yml}")"
+        # shellcheck disable=SC2086
+        expected="$(git log -1 --format=%H origin/main -- . $IGNORE)"
+        echo "deployed=$deployed last-deployable=$expected"
         if [ -z "$deployed" ]; then
           echo "refusing: cannot tell what production is running" >&2
           exit 1
         fi
-        if [ "$deployed" != "$main" ]; then
-          echo "::error::Production is already behind main, so a rollback is unresolved." \
-               "This needs a person: rolling back again only moves further from main."
+        if [ "$deployed" != "$expected" ]; then
+          echo "::error::Production runs ${deployed} and the last deployable commit is ${expected}," \
+               "so a rollback is already unresolved. This needs a person: rolling back again only" \
+               "moves further from where production belongs."
           exit 1
         fi
         # Actions runs sh with -e, and a script whose last executed command is a
