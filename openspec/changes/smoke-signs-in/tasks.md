@@ -37,3 +37,8 @@ the stand**, never against production.
 ## 6. What production does and does not check
 
 - [x] 6.1 Task 5.4 of `authentication`: record in `06-staging.md` and the README what a green production smoke now means about identity — that sign-in works end to end, and that nothing about organisations, invitations or verified addresses is exercised there at all
+
+## 7. Found while shipping this
+
+- [x] 7.1 **The code host stalled `pull_request` and `push` events for forty minutes** while `schedule` and `workflow_dispatch` ran normally — proved by dispatching the same workflow by hand and watching it start in under a minute beside a run queued since 15:40 with `updated_at` still equal to `created_at`. The pipeline's manual fallback then failed: `pr.yml` derived the branch from the pull request event alone, while the commit one screen above it already fell back to `github.sha`. One line, and the workflow is operable by hand
+- [x] 7.2 The failure was loud rather than silent, which is worth recording as a check that earned its keep: an empty ticket status used to be reported as a successful promotion that did nothing, and since that was fixed it errors with "give a branch or a commit"

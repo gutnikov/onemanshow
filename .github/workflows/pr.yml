@@ -108,7 +108,13 @@ jobs:
       - id: ticket
         uses: gutnikov/onemanshow/.github/actions/ticket-status@main
         with:
-          branch: "${{ github.event.pull_request.head.ref }}"
+          # The fallback is not cosmetic. Without it this workflow cannot be
+          # run by hand, and running it by hand is the only way the pipeline
+          # moves when the code host stalls pull_request events - which it did,
+          # for forty minutes, on 2026-08-26. The commit one screen up already
+          # had this fallback; the branch did not, which is the same fact
+          # written twice with different care.
+          branch: "${{ github.event.pull_request.head.ref || github.ref_name }}"
           token: ${{ github.token }}
       # Read from the project's own file, so the ceiling exists in one place.
       - id: limits
