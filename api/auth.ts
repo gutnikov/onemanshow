@@ -21,7 +21,10 @@ import type { connect } from '../db/client';
  * key, and adding it later means moving live accounts into a shape that did not
  * exist when they were created.
  */
-export function createAuth(connection: ReturnType<typeof connect>) {
+export function createAuth(
+  connection: ReturnType<typeof connect>,
+  options: { baseURL?: string } = {},
+) {
   return betterAuth({
     secret: required('BETTER_AUTH_SECRET'),
     // A full origin, scheme included. Left unset, this is taken from the
@@ -33,7 +36,11 @@ export function createAuth(connection: ReturnType<typeof connect>) {
     // locally over http: sign-out answered 403 and the reason was an origin
     // check, not the session. A template nobody can run locally is a template
     // nobody adopts.
-    baseURL: required('SHIP_PUBLIC_URL'),
+    //
+    // Overridable because the seed builds an instance too, and a seed performs
+    // no redirects - it has no host to name and should not be made to invent
+    // one from the environment it happens to run in.
+    baseURL: options.baseURL ?? required('SHIP_PUBLIC_URL'),
     // The schema is passed explicitly. The connection is built without one -
     // the application's own queries name their tables - so the adapter has
     // nothing to look in otherwise, and says so: "the model user was not found

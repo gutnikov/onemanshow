@@ -106,6 +106,7 @@ jobs:
             echo "$2=$v" >> "$GITHUB_ENV"
           }
           read_secret REGISTRY_TOKEN_RO KAMAL_REGISTRY_PASSWORD secrets/staging.yaml
+          read_secret BETTER_AUTH_SECRET BETTER_AUTH_SECRET secrets/staging.yaml
           read_secret SENTRY_DSN SENTRY_DSN secrets/staging.yaml
           read_secret NEON_API_KEY NEON_API_KEY secrets/ci.yaml
           echo "STAGING_PROJECT=$(python3 -c "import yaml;print(yaml.safe_load(open('ship.yml'))['roles']['database']['staging_project'])")" >> "$GITHUB_ENV"

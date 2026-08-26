@@ -75,6 +75,7 @@ jobs:
           }
           read_secret REGISTRY_TOKEN_RO KAMAL_REGISTRY_PASSWORD
           read_secret DATABASE_URL DATABASE_URL
+          read_secret BETTER_AUTH_SECRET BETTER_AUTH_SECRET
           read_secret SENTRY_DSN SENTRY_DSN
 
       # Fail rather than rebuild: recovering by rebuilding would deploy an

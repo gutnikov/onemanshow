@@ -66,6 +66,9 @@ env:
     SHIP_PUBLIC_URL: https://<%= ENV.fetch("SHIP_DOMAIN") %>
   secret:
     - DATABASE_URL
+    # Signs the session cookies. Different in each environment on purpose: a
+    # cookie minted for the stand must not be worth anything in production.
+    - BETTER_AUTH_SECRET
     - SENTRY_DSN
 
 # No accessories. The database is managed and off this machine, reached over the

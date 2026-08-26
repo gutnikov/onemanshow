@@ -17,8 +17,8 @@
 
 ## 3. Identity stops being a claim
 
-- [ ] 3.1 `ship/seed` creates an account and its organisation, as part of the fixture set rather than as a step the tests perform. Verify a failure to create the account fails seeding, not the suite
-- [ ] 3.2 `ship/e2e` signs in with the seeded account and reads the authenticated page. **This is the task that makes the capability real** — verify by breaking session handling deliberately and confirming the suite goes red, because a check that has never failed is not known to work
+- [x] 3.1 `ship/seed` creates an account and its organisation, as part of the fixture set rather than as a step the tests perform. Verify a failure to create the account fails seeding, not the suite
+- [x] 3.2 `ship/e2e` signs in with the seeded account and reads the authenticated page. **This is the task that makes the capability real** — verify by breaking session handling deliberately and confirming the suite goes red, because a check that has never failed is not known to work
 
 ## 4. Organisation scoping, exercised rather than asserted
 
