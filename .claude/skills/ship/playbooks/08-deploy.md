@@ -21,6 +21,32 @@ remedy is to bring the branch up to date and let it revalidate. Note what that
 costs on purpose: the new commit withdraws the approval, because approval
 records that somebody approved, not which commit they were looking at.
 
+## When the code host will not deliver the event
+
+The merge is reached by a label event, and events are not guaranteed: on
+2026-08-26 `pull_request` and `push` went undelivered for over an hour, and one
+label event produced no run where re-applying the label produced one in a
+second. Try re-applying the label first — it is one command and it usually
+works.
+
+The stage can also be entered by hand, which is what the dispatch trigger on it
+is for. But note what that does not cover: a dispatch trigger only exists for a
+workflow already on the default branch, so it prepares for the next outage
+rather than the current one.
+
+If neither works, the break-glass path is to do by hand exactly what the stage
+does, in this order, and to say in the thread that you did:
+
+1. Run the guards yourself — the action is a script and takes the ticket and the
+   head commit. Do not skip this; the guards are the reason the merge is not
+   just a push.
+2. Fast-forward main to the validated head. Only a fast-forward, for the same
+   reason as below.
+3. Ask for the release, unless the commit touches no deployable path.
+
+Doing this without step 1 is how an unapproved or unvalidated commit reaches
+production, and it will not look like anything went wrong.
+
 ## The merge is a fast-forward
 
 Not a merge commit, not a squash, not a rebase. Each of those produces a commit

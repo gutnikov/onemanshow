@@ -25,3 +25,18 @@ Where a stage needs a fact the event payload would have carried, that fact SHALL
 #### Scenario: A stage that nobody would ever enter by hand
 - **WHEN** a stage is driven entirely by an external system and has no meaning outside it
 - **THEN** it may have no manual path, and the reason is written down rather than left as an omission
+
+### Requirement: A change that deploys nothing still reaches the end of its lifecycle
+A change whose commit touches no deployable path SHALL NOT release, and SHALL still be completed rather than left in the status that precedes a release.
+
+The status that follows approval is moved by the release. A change with nothing to deploy has no release to move it, so without this it waits in `ready-to-release` for ever: it holds the segment, so the queue behind it stops, and every detector correctly reports it as stuck.
+
+Such a change SHALL NOT be given an observation window. A window is time to watch production after a change, and production did not change; an open ticket would assert that something is under observation which nobody can observe.
+
+#### Scenario: A wiring-only change is merged
+- **WHEN** the merged commit touches only paths excluded from the deployable set
+- **THEN** no release is dispatched, production keeps running the commit it was running, and the change is completed and closed with the reason stated
+
+#### Scenario: The segment after such a change
+- **WHEN** a change completes without deploying
+- **THEN** the segment is free for the next change, without anybody having to notice and intervene

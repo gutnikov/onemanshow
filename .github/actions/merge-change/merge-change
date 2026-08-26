@@ -65,6 +65,26 @@ case "$deployable" in
   no)
     echo "no deployable path changed between ${base} and ${head} - not dispatching a release"
     echo "production keeps running what it was running, which is what guard 4 expects"
+    # And then finish the change, because nothing else will.
+    #
+    # The status is moved to released by the release, and there is no release.
+    # Without this the ticket sits in ready-to-release for ever: it holds the
+    # segment, so the queue stops, and the window check reports it as stuck -
+    # correctly, because it is. Found by watching it happen to the very change
+    # that introduced this branch.
+    #
+    # Closed immediately rather than left open for a window. A window is time to
+    # watch production after a change, and production did not change - so an open
+    # ticket would mean "under observation" about something nobody can observe.
+    gh issue edit "$TICKET" --remove-label status:ready-to-release --add-label status:released
+    gh issue comment "$TICKET" --body "$(printf '%s' "\
+## Merged, and deliberately not released
+
+\`${head}\` is on main. It touches no deployable path, so no release was dispatched and production still runs what it ran before - which is exactly what merge guard 4 requires, and what a leaked release would have broken for the next change.
+
+**There is no observation window.** A window is time to watch production after a change, and production did not change. So this closes now rather than staying open for something nobody can observe.")"
+    gh issue close "$TICKET"
+    echo "ticket #${TICKET}: merged with nothing to deploy, closed - no window to open"
     ;;
   1)
     gh workflow run "${RELEASE_WORKFLOW:-on-main.yml}" --ref main
