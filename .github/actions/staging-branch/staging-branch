@@ -1,0 +1,169 @@
+#!/bin/sh
+# The staging database: created for a validation, emptied between its two runs,
+# deleted afterwards, and swept if a failed run left one behind.
+#
+# This replaces the action that destroyed a data plane. That one removed a named
+# volume while the accessory kept its data in a bind mount, so for an entire run
+# it destroyed nothing and reported success - and the create that followed made
+# the fiction check out. Here the destruction is the provider's operation, and
+# what this file does is ask for it and then check.
+#
+# Emptying is done by restoring the branch to its parent rather than by creating
+# a second branch, because the endpoint survives a restore: the connection
+# string does not change, so the application is deployed once per validation
+# instead of twice. Verified before this was written.
+set -eu
+
+API="https://console.neon.tech/api/v2"
+KEY="${NEON_API_KEY:?the provider key is required}"
+PROJECT="${NEON_STAGING_PROJECT:?the staging project id is required}"
+
+api() {
+  method="$1"; path="$2"; shift 2
+  curl -sS --max-time 30 -X "$method" \
+    -H "Authorization: Bearer $KEY" -H "Accept: application/json" \
+    ${1:+-H "Content-Type: application/json"} ${1:+-d "$1"} \
+    "${API}${path}"
+}
+
+# Every branch operation is asynchronous. Acting on a branch whose creation has
+# not finished is the kind of race that fails once a fortnight and is blamed on
+# something else.
+settle() {
+  i=0
+  while [ "$i" -lt 60 ]; do
+    pending="$(api GET "/projects/${PROJECT}/operations" | python3 -c '
+import json, sys
+ops = json.load(sys.stdin).get("operations", [])
+print(len([o for o in ops if o["status"] not in ("finished", "skipped", "error")]))')"
+    [ "$pending" = 0 ] && return 0
+    i=$((i + 1)); sleep 2
+  done
+  echo "::error::provider operations did not settle in 120s"
+  return 1
+}
+
+default_branch() {
+  api GET "/projects/${PROJECT}/branches" | python3 -c '
+import json, sys
+bs = json.load(sys.stdin)["branches"]
+print(next(b["id"] for b in bs if b.get("default")))'
+}
+
+connection_uri() {
+  api GET "/projects/${PROJECT}/connection_uri?branch_id=$1&database_name=neondb&role_name=neondb_owner&pooled=false" \
+    | python3 -c 'import json, sys; print(json.load(sys.stdin).get("uri", ""))'
+}
+
+# The database must be empty before migrations run. If it is not, the migration
+# table survives, every migration is counted as applied, and the seed writes into
+# the previous run's data - green, and validating nothing. This is the check the
+# deleted action could not perform.
+assert_empty() {
+  # psql, because the alternative is a node script that cannot resolve the
+  # database driver: this action is checked out outside the repository, and
+  # bare imports resolve from the script's own directory. Present on the
+  # runners this targets; if it is ever absent the check fails loudly, which
+  # is the only acceptable way for a check to be unavailable.
+  command -v psql >/dev/null 2>&1 || {
+    echo "::error::psql is not installed, so the database cannot be asked whether it is empty. Install postgresql-client; do not skip this check - an unemptied database makes every migration count as applied and the validation silently meaningless."
+    return 1
+  }
+  n="$(psql "$1" -tAc "select count(*) from information_schema.tables where table_schema = 'public'" 2>&1)" || {
+    echo "::error::could not ask the database what it contains: ${n}"
+    return 1
+  }
+  n="$(printf '%s' "$n" | tr -d '[:space:]')"
+  [ "$n" = 0 ] || { echo "::error::${n} table(s) remain in public; the database was not emptied"; return 1; }
+  echo "  verified empty: 0 tables in public"
+}
+
+emit() { printf '%s\n' "$1" >> "${GITHUB_OUTPUT:-/dev/stdout}"; }
+
+case "${1:?usage: staging-branch <create|restore|delete|sweep> ...}" in
+
+create)
+  NAME="${2:?a branch name is required}"
+  out="$(api POST "/projects/${PROJECT}/branches" \
+          "{\"branch\":{\"name\":\"${NAME}\"},\"endpoints\":[{\"type\":\"read_write\"}]}")"
+  id="$(printf '%s' "$out" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+b = d.get("branch") or {}
+if not b.get("id"):
+    sys.exit("::error::the provider did not create a branch: " + str(d)[:300])
+print(b["id"])')"
+  echo "created ${NAME} (${id})"
+  settle
+  url="$(connection_uri "$id")"
+  case "$url" in
+    postgres*"-pooler"*) echo "::error::the provider returned the pooled host"; exit 1 ;;
+    postgres*) : ;;
+    *) echo "::error::no connection string for ${id}"; exit 1 ;;
+  esac
+  echo "::add-mask::$url"
+  emit "branch_id=${id}"
+  emit "url=${url}"
+  assert_empty "$url"
+  ;;
+
+restore)
+  ID="${2:?a branch id is required}"
+  parent="$(default_branch)"
+  api POST "/projects/${PROJECT}/branches/${ID}/restore" \
+    "{\"source_branch_id\":\"${parent}\"}" >/dev/null
+  echo "restored ${ID} to ${parent}"
+  settle
+  url="$(connection_uri "$ID")"
+  echo "::add-mask::$url"
+  emit "url=${url}"
+  assert_empty "$url"
+  ;;
+
+delete)
+  ID="${2:?a branch id is required}"
+  api DELETE "/projects/${PROJECT}/branches/${ID}" >/dev/null
+  echo "deleted ${ID}"
+  ;;
+
+# A failed validation leaves a branch behind, and the free allowance is ten.
+# Reached by accident, that stops validation for a reason nobody can see - so
+# this runs on the schedule that already reports what it found.
+sweep)
+  MAX_AGE_MIN="${2:-120}"
+  api GET "/projects/${PROJECT}/branches" | MAX_AGE_MIN="$MAX_AGE_MIN" python3 -c '
+import datetime, json, os, sys
+limit = int(os.environ["MAX_AGE_MIN"])
+now = datetime.datetime.now(datetime.timezone.utc)
+kept, doomed = [], []
+for b in json.load(sys.stdin)["branches"]:
+    if b.get("default"):
+        continue
+    created = datetime.datetime.fromisoformat(b["created_at"].replace("Z", "+00:00"))
+    age = int((now - created).total_seconds() // 60)
+    (doomed if age >= limit else kept).append((b["id"], b["name"], age))
+for i, n, a in doomed:
+    print(f"DELETE\t{i}\t{n}\t{a}")
+for i, n, a in kept:
+    print(f"KEEP\t{i}\t{n}\t{a}")
+' > /tmp/sweep.tsv
+  swept=0
+  while IFS="$(printf '\t')" read -r verdict id name age; do
+    case "$verdict" in
+      DELETE)
+        api DELETE "/projects/${PROJECT}/branches/${id}" >/dev/null
+        echo "  swept ${name} (${id}), ${age}m old"
+        swept=$((swept + 1))
+        ;;
+      KEEP) echo "  kept ${name} (${id}), ${age}m old - a validation may be using it" ;;
+    esac
+  done < /tmp/sweep.tsv
+  total="$(api GET "/projects/${PROJECT}/branches" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["branches"]))')"
+  # Said on every run, including runs with nothing to sweep: the allowance being
+  # reached must be visible before it stops a validation.
+  echo "swept ${swept}; ${total} branch(es) remain of an allowance of 10"
+  [ "$total" -lt 9 ] || echo "::warning::${total} of 10 branches in use - the next validation may fail to create one"
+  ;;
+
+*) echo "::error::unknown mode '$1'"; exit 1 ;;
+esac

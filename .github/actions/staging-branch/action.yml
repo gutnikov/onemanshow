@@ -1,0 +1,63 @@
+name: staging branch
+description: >
+  Creates, empties, deletes and sweeps the staging database. Replaces the action
+  that destroyed a data plane and could not prove it: destruction is the
+  provider's operation here, and this checks the result rather than trusting an
+  exit code.
+inputs:
+  mode:
+    description: >
+      create for a validation, restore to empty it between the two runs, delete
+      when finished, sweep to remove what a failed run left behind.
+    required: true
+  name:
+    description: Branch name, for create
+    required: false
+    default: ""
+  branch_id:
+    description: Branch to act on, for restore and delete
+    required: false
+    default: ""
+  max_age_minutes:
+    description: >
+      For sweep. Branches older than this are removed; a validation in progress
+      is younger, so this is what separates abandoned from in use.
+    required: false
+    default: "120"
+  project:
+    description: The provider's staging project id
+    required: true
+  key:
+    description: The provider's API key
+    required: true
+outputs:
+  branch_id:
+    description: The branch that was created
+    value: ${{ steps.act.outputs.branch_id }}
+  url:
+    description: >
+      Direct connection string for the branch. Masked in the log, and the same
+      across a restore, which is why the application is deployed once rather
+      than once per run.
+    value: ${{ steps.act.outputs.url }}
+runs:
+  using: composite
+  steps:
+    - id: act
+      shell: sh
+      env:
+        NEON_API_KEY: ${{ inputs.key }}
+        NEON_STAGING_PROJECT: ${{ inputs.project }}
+        MODE: ${{ inputs.mode }}
+        NAME: ${{ inputs.name }}
+        BRANCH_ID: ${{ inputs.branch_id }}
+        MAX_AGE: ${{ inputs.max_age_minutes }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        case "$MODE" in
+          create)  "$ACTION_PATH/staging-branch" create "$NAME" ;;
+          restore) "$ACTION_PATH/staging-branch" restore "$BRANCH_ID" ;;
+          delete)  "$ACTION_PATH/staging-branch" delete "$BRANCH_ID" ;;
+          sweep)   "$ACTION_PATH/staging-branch" sweep "$MAX_AGE" ;;
+          *) echo "::error::unknown mode '$MODE'"; exit 1 ;;
+        esac
