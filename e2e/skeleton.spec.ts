@@ -68,50 +68,48 @@ test('typed route navigation reaches the same value', async ({ page }) => {
 /**
  * Sign-in is rate limited, and this stand runs production's configuration.
  *
- * Better Auth limits anything under `/sign-in` to three requests per ten
- * seconds per client address - its own default, and a real defence against
- * password guessing. The address can be trusted because kamal-proxy overwrites
+ * Better Auth throttles anything under `/sign-in` per client address - a real
+ * defence against password guessing, active whenever the application runs as
+ * production. The address can be trusted because kamal-proxy overwrites
  * `X-Forwarded-For` whenever it terminates TLS, which it does here: every
  * visitor is counted separately and none can claim to be another.
  *
- * So the suite treats signing in as scarce rather than free. It spends the
- * allowance deliberately, waits when it is gone, and reuses a session in every
- * test that is not itself about signing in. Raising the limit for the tests was
- * the alternative and was refused: it would have made the suite green by
- * removing the defence the suite is meant to be running against.
+ * The suite therefore signs in the way a well-behaved client would: when the
+ * application says it is being asked too often, it waits as long as the
+ * application asked and tries again. Nothing here restates the throttle's own
+ * rule - not the allowance, not the window, not how the window rolls. An
+ * earlier version modelled all three, which made the suite a second copy of a
+ * rule it does not own, and this project has been bitten by a second copy
+ * every single time.
  *
- * The bookkeeping is per process, so it holds only while the suite runs
- * serially in one worker. It does; `fullyParallel` would break it.
+ * Waiting on a refusal cannot hide a broken sign-in. A wrong password is
+ * answered and returned rather than retried, and a sign-in that never succeeds
+ * does not start succeeding because it was asked twice.
+ *
+ * Weakening the throttle on the stand was the alternative and was refused: it
+ * would have made the suite green by removing the defence the suite runs
+ * against, and left the stand unable to notice a change that starts signing in
+ * repeatedly by itself.
  */
-const SIGN_IN_WINDOW_MS = 10_000;
-const SIGN_IN_PER_WINDOW = 3;
+const RATE_LIMITED = 429;
 
-// Mirrors the server's rule, which is not a rolling count but a count that
-// resets after a full window of silence.
-let spentInWindow = 0;
-let lastSpentAt = 0;
-
-const idleMs = () => Date.now() - lastSpentAt;
+/**
+ * A bound, not the allowance. Nothing here knows how many attempts the
+ * application permits; this only stops a suite from waiting forever when the
+ * throttle refuses everything.
+ */
+const ATTEMPT_CAP = 10;
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
   });
 
-/** Waits until the next sign-in request would be allowed, then records it. */
-async function spendSignIn(): Promise<void> {
-  while (idleMs() < SIGN_IN_WINDOW_MS && spentInWindow >= SIGN_IN_PER_WINDOW) {
-    await sleep(SIGN_IN_WINDOW_MS - idleMs() + 250);
-  }
-  spentInWindow = idleMs() >= SIGN_IN_WINDOW_MS ? 1 : spentInWindow + 1;
-  lastSpentAt = Date.now();
-}
-
-/** Waits the window out so what follows starts from a full allowance. */
-async function clearSignInWindow(): Promise<void> {
-  const remaining = SIGN_IN_WINDOW_MS - idleMs() + 250;
-  if (remaining > 0) await sleep(remaining);
-  spentInWindow = 0;
+/** How long the application asked to be left alone, from its own answer. */
+function retryAfterMs(headers: Record<string, string>): number {
+  const seconds = Number(headers['x-retry-after']);
+  // A refusal without a usable hint still has to wait for something.
+  return (Number.isFinite(seconds) && seconds > 0 ? seconds : 1) * 1000 + 250;
 }
 
 /** The stand, read from the config rather than from the environment twice. */
@@ -136,13 +134,18 @@ async function signInViaApi(
   const baseURL = standURL();
   const api = await playwright.request.newContext({ baseURL });
   try {
-    await spendSignIn();
-    const response = await api.post('/api/auth/sign-in/email', {
-      data: { email, password },
-      headers: { origin: baseURL },
-    });
-    expect(response.status(), 'a seeded account must be able to sign in').toBe(200);
-    return (await api.storageState()).cookies;
+    for (let attempt = 1; attempt <= ATTEMPT_CAP; attempt += 1) {
+      const response = await api.post('/api/auth/sign-in/email', {
+        data: { email, password },
+        headers: { origin: baseURL },
+      });
+      if (response.status() !== RATE_LIMITED) {
+        expect(response.status(), 'a seeded account must be able to sign in').toBe(200);
+        return (await api.storageState()).cookies;
+      }
+      await sleep(retryAfterMs(response.headers()));
+    }
+    throw new Error(`sign-in was still throttled after ${ATTEMPT_CAP} attempts`);
   } finally {
     await api.dispose();
   }
@@ -163,11 +166,30 @@ async function sessionFor(
   return cookies;
 }
 
-/** Puts the page behind a session without spending sign-in allowance. */
+/** Puts the page behind a session without going through the form. */
 async function as(page: Page, cookies: Cookie[]): Promise<void> {
   await page.context().clearCookies();
   await page.context().addCookies(cookies);
   await page.goto('/account');
+}
+
+/**
+ * Fills the form, submits it, and submits again for as long as the throttle
+ * refuses. Returns the status of the attempt that was actually judged, so the
+ * caller asserts on the answer rather than on the retrying.
+ */
+async function submitSignIn(page: Page, email: string, password: string): Promise<number> {
+  await page.getByTestId('email').fill(email);
+  await page.getByTestId('password').fill(password);
+  for (let attempt = 1; attempt <= ATTEMPT_CAP; attempt += 1) {
+    const [response] = await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/auth/sign-in/email')),
+      page.getByTestId('sign-in').click(),
+    ]);
+    if (response.status() !== RATE_LIMITED) return response.status();
+    await sleep(retryAfterMs(response.headers()));
+  }
+  throw new Error(`the form was still throttled after ${ATTEMPT_CAP} attempts`);
 }
 
 /**
@@ -185,10 +207,7 @@ test('signing in reaches the page behind a session', async ({ page }) => {
   await expect(page.getByTestId('email')).toBeVisible();
   await expect(page.getByTestId('account-email')).toHaveCount(0);
 
-  await page.getByTestId('email').fill(SEEDED_EMAIL);
-  await page.getByTestId('password').fill(SEEDED_PASSWORD);
-  await spendSignIn();
-  await page.getByTestId('sign-in').click();
+  expect(await submitSignIn(page, SEEDED_EMAIL, SEEDED_PASSWORD)).toBe(200);
 
   await expect(page.getByTestId('account-email')).toHaveText(SEEDED_EMAIL);
   // The organisation exists because a hook made one when the account appeared.
@@ -217,17 +236,16 @@ test('signing out ends the session', async ({ page, playwright }) => {
 /**
  * A wrong password is refused, and refused for being wrong.
  *
- * The message is asserted, not merely its presence. Sign-in is rate limited,
- * and "Too many requests" satisfies a check for a problem of any kind - so the
- * loose version of this test went green while saying nothing at all about
- * whether passwords are checked.
+ * Both halves are asserted. The status distinguishes a judged attempt from a
+ * throttled one, and the message is checked rather than merely present: sign-in
+ * is rate limited, and "Too many requests" satisfies a check for a problem of
+ * any kind - so the loose version of this test went green while saying nothing
+ * at all about whether passwords are checked.
  */
 test('a wrong password is refused', async ({ page }) => {
   await page.goto('/account');
-  await page.getByTestId('email').fill(SEEDED_EMAIL);
-  await page.getByTestId('password').fill('not-the-password');
-  await spendSignIn();
-  await page.getByTestId('sign-in').click();
+
+  expect(await submitSignIn(page, SEEDED_EMAIL, 'not-the-password')).toBe(401);
 
   await expect(page.getByTestId('account-problem')).toHaveText(/invalid email or password/i);
   await expect(page.getByTestId('account-email')).toHaveCount(0);
@@ -239,8 +257,8 @@ test('a wrong password is refused', async ({ page }) => {
  * With one organisation, a query that ignores the scope entirely returns the
  * right answer - so this visits the page as each of two seeded accounts in turn
  * and checks that neither sees the other's note. That is why the seed creates
- * two. The sessions come from the API rather than the form: switching identity
- * three times through the form is four sign-ins by itself.
+ * two. The sessions come from the API rather than the form, because switching
+ * identity three times through the form is four sign-ins by itself.
  */
 test('an organisation sees only its own notes', async ({ page, playwright }) => {
   const mine = `mine-${Date.now()}`;
@@ -274,44 +292,41 @@ test('notes require a session', async ({ request }) => {
 });
 
 /**
- * The limit itself, asserted rather than assumed.
+ * The throttle itself, asserted as a property rather than as a number.
  *
- * This is the defence that made the first version of this suite flaky, and
- * nothing else here would notice if an upgrade removed it. It also pins the
- * numbers the bookkeeping above depends on: if the allowance grows, the last
- * attempt is refused for the wrong reason and this fails. It burns the whole
- * allowance, so it goes last.
+ * Nothing else here would notice if an upgrade removed this defence, and every
+ * other test is written to survive whatever the allowance happens to be - so
+ * this one asks only what matters: that guessing is eventually refused instead
+ * of endlessly checked, and that it is refused within a number of attempts that
+ * makes the defence worth having.
+ *
+ * It burns the allowance, so it goes last and puts back what it spent.
  */
 test('repeated sign-in attempts are refused', async ({ playwright }) => {
   const baseURL = standURL();
   const api = await playwright.request.newContext({ baseURL });
   try {
-    await clearSignInWindow();
-
     const statuses: number[] = [];
-    for (let attempt = 0; attempt <= SIGN_IN_PER_WINDOW; attempt += 1) {
-      // Deliberately sequential and deliberately unpaced - the point is to
-      // exceed the allowance, so this does not go through spendSignIn.
+    let refusal;
+
+    while (statuses.length < ATTEMPT_CAP && refusal === undefined) {
       const response = await api.post('/api/auth/sign-in/email', {
         data: { email: SEEDED_EMAIL, password: 'not-the-password' },
         headers: { origin: baseURL },
       });
       statuses.push(response.status());
+      if (response.status() === RATE_LIMITED) refusal = response;
     }
-    spentInWindow = SIGN_IN_PER_WINDOW;
-    lastSpentAt = Date.now();
 
-    // Wrong passwords count towards the limit, which is the whole point:
-    // guessing is what it defends against.
-    expect(statuses.slice(0, SIGN_IN_PER_WINDOW)).toEqual(
-      Array.from({ length: SIGN_IN_PER_WINDOW }, () => 401),
-    );
-    expect(statuses.at(-1)).toBe(429);
+    expect(refusal, `attempts were still being checked after ${statuses.length}`).toBeDefined();
+    // Every attempt before the refusal was judged and rejected: wrong passwords
+    // count towards the limit, which is the whole point of having one.
+    expect(statuses.slice(0, -1)).toEqual(statuses.slice(0, -1).map(() => 401));
 
-    // Leaves the stand as it was found. Without this a run that starts right
-    // after this one meets an allowance this test already spent, and its first
-    // sign-in is refused - the fresh process cannot know the window is dirty.
-    await clearSignInWindow();
+    // Leaves the stand as it was found, waiting exactly as long as it asked.
+    // Without this a run starting straight after meets an allowance this test
+    // already spent, and its first sign-in is refused.
+    if (refusal !== undefined) await sleep(retryAfterMs(refusal.headers()));
   } finally {
     await api.dispose();
   }

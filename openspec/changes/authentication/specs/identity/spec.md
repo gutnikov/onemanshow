@@ -82,9 +82,13 @@ The synthetic account's credentials SHALL be a secret like any other, and its ex
 ### Requirement: Repeated sign-in attempts are refused
 Sign-in SHALL be throttled per client address. The library's own default is three attempts per ten seconds for anything under `/sign-in`, counted per address and per path, and it counts refused attempts — which is the point, since guessing is what it defends against. It is active whenever the application runs as production, so it is active on the stand as well as in production.
 
-The throttle SHALL NOT be relaxed to make tests pass. A suite that signs in more often than a visitor plausibly would SHALL respect the limit by construction — spending the allowance deliberately, waiting when it is gone, and reusing a session wherever the test is not itself about signing in. This is written down because the first version of the suite signed in six times in ten seconds and was therefore never reliably green; the failure looked like a flake, then like contention, then like broken organisation scoping, and was none of those.
+The throttle SHALL NOT be relaxed to make tests pass. This is written down because the first version of the suite signed in six times in ten seconds and was therefore never reliably green; the failure looked like a flake, then like contention, then like broken organisation scoping, and was none of those.
 
-The limit SHALL be asserted by a test. Nothing else notices when a defence disappears, and an upgrade that widened it would silently restore the flake.
+A suite that signs in more often than a visitor plausibly would SHALL instead behave as any well-behaved client does: when the application answers that it is being asked too often, wait as long as the application asked and ask again. It SHALL NOT restate the throttle's rule — not the allowance, not the window, not how the window rolls. A suite that predicts the rule is a second copy of a rule it does not own, and it diverges silently the moment the rule changes. It SHALL also reuse a session wherever the test is not itself about signing in, so that ordinary coverage does not consume a defence's allowance.
+
+Waiting on a refusal SHALL NOT be able to hide a broken sign-in. An attempt that was judged — accepted or rejected — is returned to the test as it is; only a refusal to judge is retried.
+
+The throttle SHALL be asserted by a test, and asserted as a property rather than as a number: that repeated guessing is eventually refused instead of endlessly checked, and refused within few enough attempts for the defence to be worth having. Nothing else notices when a defence disappears.
 
 Throttling per address is only meaningful if the address cannot be chosen by the client. The proxy therefore SHALL be the only source of the forwarded address: it overwrites what the client sent, which is what it does when it terminates TLS. Configuring it to forward client headers instead SHALL be treated as a change to this requirement, because the forwarded chain then becomes unresolvable and every such request falls into one bucket shared by all of them.
 
@@ -93,8 +97,12 @@ Throttling per address is only meaningful if the address cannot be chosen by the
 - **THEN** they are refused with a rate-limit response rather than checked, and the refusals count towards the allowance
 
 #### Scenario: The suite signs in more often than a person would
-- **WHEN** the end-to-end suite runs
-- **THEN** it stays within the allowance without the application being reconfigured, and it leaves the allowance clear so that a run started straight after this one is not refused
+- **WHEN** the end-to-end suite runs, including a run that starts while the allowance is already spent
+- **THEN** it passes without the application being reconfigured, waiting only as long as the application asked, and it leaves the allowance clear for whatever runs next
+
+#### Scenario: The throttle's own rule changes
+- **WHEN** an upgrade changes the allowance, the window, or how the window rolls
+- **THEN** the suite still passes, because it reads the refusal rather than predicting it, and the test that asserts the throttle fails only if refusal stops happening at all
 
 #### Scenario: A client claims a different address
 - **WHEN** a request arrives carrying its own forwarded-address header
