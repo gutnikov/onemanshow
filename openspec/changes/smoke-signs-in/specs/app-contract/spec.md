@@ -70,11 +70,17 @@ The pipeline SHALL pass the address of the environment under test to `ship/e2e`,
 ### Requirement: Smoke must not mutate production state
 `ship/smoke` and `ship/signin` run against production. They SHALL NOT create, modify or delete data that is visible to real users. Where exercising a path requires state, they SHALL use a dedicated synthetic account whose residue is acceptable in production.
 
-Residue is not the same as nothing. Signing in writes a session, and a hook that signs in therefore leaves a row behind on every release. That is acceptable and SHALL be stated where the hook is described, rather than described as writing nothing — a claim that is easy to make, false, and quietly poisons any verification that rests on it.
+Signing in is such a path, and it is the one this allowance exists for. The account SHALL belong to nobody, its credentials SHALL be held like any other secret, and what is done while holding its session SHALL be read-only — the account proves a session works, it does not exercise the product.
+
+Residue is not the same as nothing. Signing in writes a session, and a hook that signs in therefore leaves a row behind on every release — two, where the release probes before the deploy and after it. That is acceptable and SHALL be stated where the hook is described, rather than described as writing nothing: a claim that is easy to make, false, and one that quietly poisons any verification resting on it.
 
 #### Scenario: Smoke exercises a user path in production
 - **WHEN** `ship/smoke` runs against production
 - **THEN** no data belonging to or visible to a real user is created, modified or deleted
+
+#### Scenario: Smoke needs a session
+- **WHEN** the path being exercised requires being signed in
+- **THEN** it signs in as the dedicated synthetic account and reads, leaving behind only what signing in itself leaves
 
 #### Scenario: Signing in leaves a session
 - **WHEN** `ship/signin` signs in to production
