@@ -167,18 +167,30 @@ import datetime, json, os, sys
 limit = int(os.environ["MAX_AGE_MIN"])
 keep = set(os.environ.get("KEEP", "").split())
 now = datetime.datetime.now(datetime.timezone.utc)
+
+branches = [b for b in json.load(sys.stdin)["branches"] if not b.get("default")]
+branches.sort(key=lambda b: b["created_at"])
+
+# The newest survives even when its change has moved on. Removing it the moment
+# a change left staging killed the stand between changes: the application stays
+# deployed against the branch it was given, so the address a person opens by
+# habit answered with an internal error and no explanation. The allowance is ten
+# and one is in use, so there is nothing to save by taking it back early.
+newest = branches[-1]["id"] if branches else None
+
 rows = []
-for b in json.load(sys.stdin)["branches"]:
-    if b.get("default"):
-        continue
+for b in branches:
     created = datetime.datetime.fromisoformat(b["created_at"].replace("Z", "+00:00"))
     age = int((now - created).total_seconds() // 60)
     if b["name"] in keep:
-        rows.append(("KEEP", b["id"], b["name"], age, "its change is in staging"))
+        why = ("KEEP", "its change is in staging")
+    elif b["id"] == newest:
+        why = ("KEEP", "the most recent, so the stand keeps working between changes")
     elif age < limit:
-        rows.append(("KEEP", b["id"], b["name"], age, "too young to judge"))
+        why = ("KEEP", "too young to judge")
     else:
-        rows.append(("DELETE", b["id"], b["name"], age, "no change in staging owns it"))
+        why = ("DELETE", "superseded and nothing in staging owns it")
+    rows.append((why[0], b["id"], b["name"], age, why[1]))
 for r in sorted(rows):
     print("\t".join(str(x) for x in r))
 ' > /tmp/sweep.tsv
