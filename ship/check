@@ -5,3 +5,7 @@ set -eu
 npm run typecheck
 npm run lint
 npm run test
+
+# The journal and the files must agree. Nothing else compares them, and a
+# mismatch only shows up when migrations run - by then it is a deploy.
+python3 scripts/check-migrations.py
