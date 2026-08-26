@@ -1,6 +1,7 @@
 # Staging destination. A distinct service name is what gives it its own
-# containers and its own named volume, so resetting one cannot touch the other -
-# and it puts "staging" in those names, which the reset guard requires.
+# containers. It no longer needs to give it its own volume: the database is a
+# branch at the provider, and the boundary between environments is theirs rather
+# than a volume name and a password.
 service: onemanshow-staging
 
 proxy:
@@ -16,6 +17,3 @@ servers:
       cpus: 1
       memory: 512m
 
-accessories:
-  db:
-    port: "127.0.0.1:<%= ENV.fetch('SHIP_STAGING_DB_PORT', '5433') %>:5432"

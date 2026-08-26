@@ -63,20 +63,12 @@ env:
     - DATABASE_URL
     - SENTRY_DSN
 
-accessories:
-  db:
-    image: postgres:17-alpine
-    host: <%= ENV.fetch("SHIP_HOST") %>
-    # Bound to loopback deliberately. A published container port bypasses ufw
-    # entirely - Docker writes its own iptables rules - so "5432:5432" here
-    # would put the database on the public internet while the firewall reported
-    # deny incoming. CI reaches it through an ssh tunnel instead.
-    port: "127.0.0.1:<%= ENV.fetch('SHIP_DB_PORT', '5432') %>:5432"
-    env:
-      clear:
-        POSTGRES_USER: onemanshow
-        POSTGRES_DB: onemanshow
-      secret:
-        - POSTGRES_PASSWORD
-    directories:
-      - data:/var/lib/postgresql/data
+# No accessories. The database is managed and off this machine, reached over the
+# network at the address the application is given - so there is nothing here to
+# publish on a port, nothing to bind to loopback, and no volume to reset.
+#
+# The comment that used to live here is worth keeping the point of: a published
+# container port bypasses ufw entirely, because Docker writes its own iptables
+# rules, so "5432:5432" would have put the database on the public internet while
+# the firewall reported deny incoming. That hazard leaves with the accessory,
+# and it is the reason to be suspicious of any port added here later.

@@ -107,11 +107,6 @@ jobs:
           }
           read_secret REGISTRY_TOKEN_RO KAMAL_REGISTRY_PASSWORD secrets/staging.yaml
           read_secret SENTRY_DSN SENTRY_DSN secrets/staging.yaml
-          # Declared in .kamal/secrets and resolved by the deploy tool, so it
-          # must be present even though nothing uses it any more: the accessory
-          # it belonged to is not booted for staging. It leaves when production
-          # leaves, so that the declaration and the reality change together.
-          read_secret POSTGRES_PASSWORD POSTGRES_PASSWORD secrets/staging.yaml
           read_secret NEON_API_KEY NEON_API_KEY secrets/ci.yaml
           echo "STAGING_PROJECT=$(python3 -c "import yaml;print(yaml.safe_load(open('ship.yml'))['roles']['database']['staging_project'])")" >> "$GITHUB_ENV"
 
