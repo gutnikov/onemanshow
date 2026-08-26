@@ -1,11 +1,14 @@
 # Staging validation, in the two runs the spec requires.
 #
-# The baseline comes from the commit production is running, so the change's own
-# migration executes against production's schema. Because that baseline also
-# carries production's *data*, the first run uses only the content-agnostic
-# smoke set - asserting on fixtures there would fail any change that touches
-# them, through no fault of its own. The full suite runs afterwards, against
-# data seeded at the change's own commit.
+# The baseline is production's schema produced by production's code, with the
+# change's migration applied on top. The data is synthetic throughout - a branch
+# of production would be cheaper and would put real user data where a browser and
+# a test suite reach it, and that is refused.
+#
+# The first run therefore uses only the content-agnostic smoke set: the data
+# present is not the data this change's fixtures describe, and asserting on
+# content there fails every change that touches them. The full suite runs
+# afterwards, against data seeded at the change's own commit.
 name: staging
 
 on:
@@ -20,7 +23,6 @@ on:
       host: { required: true, type: string }
       domain: { description: Production host name, required: true, type: string }
       staging_domain: { required: true, type: string }
-      staging_db_container: { required: true, type: string }
       host_key:
         description: known_hosts line for the machine, from ssh-keyscan. Not a secret.
         required: false
@@ -49,8 +51,7 @@ jobs:
     steps:
       # A 40-hex commit, checked before anything acts on it. Passing an
       # abbreviated one got as far as the deploy and failed there as an image
-      # "not found", which reads like a build problem rather than a bad
-      # argument. fetch-depth 0 is needed for the baseline worktree below.
+      # "not found", which reads like a build problem rather than a bad argument.
       - name: the sha must be a full commit
         run: |
           case "${{ inputs.sha }}" in
@@ -64,13 +65,12 @@ jobs:
           fi
 
       # Pinned to the commit under review. Left unpinned this resolves to the
-      # branch the dispatch ran on - main - and then every step below labelled
-      # "at the commit under review" silently used main's code: main's
-      # migrations, main's seed, main's tests. A change that moved a fixture
-      # was validated by seeding main's value and asserting main's constant,
-      # which agree, so the run was green and proved nothing. The baseline
-      # worktree was explicit about its ref and was the only step that was
-      # actually on the commit it claimed.
+      # branch the dispatch ran on, and then every step labelled "at the commit
+      # under review" silently used that branch's code: its migrations, its seed,
+      # its tests. A change that moved a fixture was then validated by seeding
+      # that branch's value and asserting its expectation, which agree - so the
+      # run was green and proved nothing. fetch-depth 0 is needed for the
+      # baseline worktree below.
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.sha }}
@@ -84,6 +84,9 @@ jobs:
           curl -fsSL -o /tmp/sops https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64
           sudo install -m 0755 /tmp/sops /usr/local/bin/sops
 
+      # Still needed: the deploy tool reaches the machine over ssh. The database
+      # no longer does, which is what removed the tunnel whose port was written
+      # in a workflow and a secret at once and drifted between them.
       - uses: gutnikov/onemanshow/.github/actions/ssh-agentless@main
         with:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -98,111 +101,110 @@ jobs:
         run: |
           set -eu
           read_secret() {
-            v="$(sops -d --extract "[\"$1\"]" "secrets/staging.yaml")"
+            v="$(sops -d --extract "[\"$1\"]" "$3")"
             echo "::add-mask::$v"
             echo "$2=$v" >> "$GITHUB_ENV"
           }
-          read_secret REGISTRY_TOKEN_RO KAMAL_REGISTRY_PASSWORD
-          read_secret DATABASE_URL DATABASE_URL
-          read_secret POSTGRES_PASSWORD POSTGRES_PASSWORD
-          read_secret DATABASE_URL_TUNNEL DATABASE_URL_TUNNEL
-          read_secret SENTRY_DSN SENTRY_DSN
+          read_secret REGISTRY_TOKEN_RO KAMAL_REGISTRY_PASSWORD secrets/staging.yaml
+          read_secret SENTRY_DSN SENTRY_DSN secrets/staging.yaml
+          # Declared in .kamal/secrets and resolved by the deploy tool, so it
+          # must be present even though nothing uses it any more: the accessory
+          # it belonged to is not booted for staging. It leaves when production
+          # leaves, so that the declaration and the reality change together.
+          read_secret POSTGRES_PASSWORD POSTGRES_PASSWORD secrets/staging.yaml
+          read_secret NEON_API_KEY NEON_API_KEY secrets/ci.yaml
+          echo "STAGING_PROJECT=$(python3 -c "import yaml;print(yaml.safe_load(open('ship.yml'))['roles']['database']['staging_project'])")" >> "$GITHUB_ENV"
 
-      # Production's version tag carries a destination suffix; the commit is
-      # what the baseline needs, so the suffix is stripped.
-      #
-      # Piping this into tail once turned a failed container run into an empty
-      # string and a green step - a silently wrong baseline is worse than a
-      # broken one, so the result is now validated as a commit before use.
-      - name: read the commit production is running
-        id: prod
+      # Production's own answer, over HTTP. It used to be read by running the
+      # deploy tool on the machine, which needed ssh, a container and a pipe
+      # that once turned a failure into an empty string and a green step.
+      - id: prod
         run: |
-          set -u
-          # Capturing with out="$(cmd)" under set -e aborts the script at the
-          # assignment, so an error branch written after it never runs and the
-          # tool's own message - which it prints on stdout, into the capture -
-          # is never seen. Hence "if ! out=..." with stderr folded in.
-          if ! out="$(docker run --rm -v "$PWD:/workdir" -v "$HOME/.ssh:/root/.ssh:ro" \
-                       -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER \
-                       -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
-                       ghcr.io/basecamp/kamal:v2.12.0 app version 2>&1)"; then
-            echo "kamal app version failed:" >&2
-            printf '%s\n' "$out" >&2
-            exit 1
-          fi
-          sha="$(printf '%s\n' "$out" | grep -oE '^[0-9a-f]{40}' | tail -1 || true)"
-          if [ -z "$sha" ]; then
-            echo "could not read production's version, got:" >&2
-            printf '%s\n' "$out" >&2
-            exit 1
-          fi
+          set -eu
+          sha="$(.github/actions/production-commit/production-commit "https://${{ inputs.domain }}/health")"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "production runs $sha"
 
-      - name: destroy the staging data plane
-        uses: gutnikov/onemanshow/.github/actions/reset-staging@main
+      # Created, not emptied. The action this replaces removed a named volume
+      # while the data lived in a bind mount, so it destroyed nothing and said
+      # it had. A branch that has just been created cannot contain residue, and
+      # the action checks that it does not.
+      - id: branch
+        uses: gutnikov/onemanshow/.github/actions/staging-branch@main
         with:
-          host: ${{ inputs.host }}
-          container: ${{ inputs.staging_db_container }}
+          mode: create
+          name: v-${{ github.run_id }}
+          project: ${{ env.STAGING_PROJECT }}
+          key: ${{ env.NEON_API_KEY }}
 
-      - name: bring an empty staging database back
-        uses: gutnikov/onemanshow/.github/actions/kamal@main
-        with: { args: accessory boot db -d staging }
+      - name: make the branch the environment's database
+        run: |
+          echo "::add-mask::${{ steps.branch.outputs.url }}"
+          echo "DATABASE_URL=${{ steps.branch.outputs.url }}" >> "$GITHUB_ENV"
 
-      # The local port matches the remote one so that DATABASE_URL_TUNNEL in
-      # secrets stays the single source of truth for the address. Forwarding to
-      # a different local port means the workflow and the secret each hold half
-      # of it, and they drifted.
-      - name: open a tunnel to the staging database
-        run: ssh -f -N -L 5433:localhost:5433 "root@${{ inputs.host }}"
-
-      # Baseline: production's schema and data, produced by production's code.
+      # Baseline: production's schema, produced by production's code.
       - name: migrate and seed at production's commit
         run: |
           git worktree add /tmp/baseline "${{ steps.prod.outputs.sha }}"
           ln -s "$PWD/node_modules" /tmp/baseline/node_modules
           cd /tmp/baseline
-          DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/migrate
-          DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/seed
+          ./ship/migrate
+          ./ship/seed
 
       # The migration is applied before the image that requires it is deployed.
       # The other order leaves a window where the schema is behind the code, and
-      # the readiness check refuses to call that healthy - correctly, which is
-      # how this ordering bug surfaced. The release workflow already did it this
-      # way round; staging did not, and only a migration that is not backward
-      # compatible could reveal the difference.
+      # readiness refuses to call that healthy - correctly, which is how this
+      # ordering bug surfaced. The release already did it this way round; staging
+      # did not, and only a migration that is not backward compatible could
+      # reveal the difference.
       - name: migrate at the commit under review
-        run: DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/migrate
+        run: ./ship/migrate
 
       - name: deploy the change under review
         uses: gutnikov/onemanshow/.github/actions/kamal@main
         with: { args: "deploy --skip-push --version ${{ inputs.sha }}-staging -d staging" }
 
-      # First run: did the migration break the application against real-shaped
-      # data? Content-agnostic, because the data here is not this change's.
+      # First run: did the migration break the application against data shaped
+      # like production's? Content-agnostic, because the data here is not this
+      # change's.
       - name: migration safety
         env: { SHIP_URL: "https://${{ inputs.staging_domain }}" }
         uses: gutnikov/onemanshow/.github/actions/run-hook@main
         with: { name: smoke }
 
-      # Reset between the two runs: the suite must see the fixtures it was
-      # written against, not production's data.
-      - name: destroy the staging data plane again
-        uses: gutnikov/onemanshow/.github/actions/reset-staging@main
+      # Emptied between the runs by restoring the branch to its parent. The
+      # endpoint survives that, so the connection string is unchanged and the
+      # application is not redeployed - which is why this is a restore and not
+      # a second branch.
+      - name: empty the branch between the two runs
+        uses: gutnikov/onemanshow/.github/actions/staging-branch@main
         with:
-          host: ${{ inputs.host }}
-          container: ${{ inputs.staging_db_container }}
+          mode: restore
+          branch_id: ${{ steps.branch.outputs.branch_id }}
+          project: ${{ env.STAGING_PROJECT }}
+          key: ${{ env.NEON_API_KEY }}
 
-      - name: bring the staging database back
-        uses: gutnikov/onemanshow/.github/actions/kamal@main
-        with: { args: accessory boot db -d staging }
-
-      - name: reopen the tunnel and seed at the commit under review
+      - name: seed at the commit under review
         run: |
-          pkill -f '5433:localhost:5433' || true
-          ssh -f -N -L 5433:localhost:5433 "root@${{ inputs.host }}"
-          DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/migrate
-          DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/seed
+          ./ship/migrate
+          ./ship/seed
+
+      # The restore deletes the timeline the running application holds
+      # connections to, so its first request afterwards may fail while it
+      # reconnects. Waiting for readiness turns that into a pause instead of a
+      # test failure blamed on the change.
+      - name: wait for the application to be ready again
+        env: { SHIP_URL: "https://${{ inputs.staging_domain }}" }
+        run: |
+          set -eu
+          i=0
+          while [ "$i" -lt 30 ]; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${SHIP_URL}/health" || true)"
+            [ "$code" = 200 ] && { echo "ready after ${i}s"; exit 0; }
+            i=$((i + 1)); sleep 1
+          done
+          echo "::error::the application did not become ready within 30s of the database being emptied and reseeded"
+          exit 1
 
       # Second run: is the change itself right? Against its own fixtures.
       - name: feature correctness
@@ -223,9 +225,19 @@ jobs:
           target_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           token: ${{ github.token }}
 
+      # always(): a branch left behind consumes an allowance of ten, and a
+      # failed run is exactly when nobody is watching.
+      - name: give the branch back
+        if: always()
+        uses: gutnikov/onemanshow/.github/actions/staging-branch@main
+        with:
+          mode: delete
+          branch_id: ${{ steps.branch.outputs.branch_id }}
+          project: ${{ env.STAGING_PROJECT }}
+          key: ${{ env.NEON_API_KEY }}
+
       # always(): the red path is the one that most needs to reach a person, and
-      # a report that only happens on success is a report that says nothing when
-      # it matters.
+      # a report that only happens on success says nothing when it matters.
       - id: ticket
         if: always()
         uses: gutnikov/onemanshow/.github/actions/ticket-status@main

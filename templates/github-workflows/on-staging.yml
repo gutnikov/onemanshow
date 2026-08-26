@@ -19,7 +19,6 @@ jobs:
       host: REPLACE_ME_SERVER_IP
       domain: REPLACE_ME_PRODUCTION_HOSTNAME
       staging_domain: REPLACE_ME_STAGING_HOSTNAME
-      staging_db_container: onemanshow-staging-db
       host_key: |
         REPLACE_ME_KNOWN_HOSTS_LINES
     secrets: inherit
