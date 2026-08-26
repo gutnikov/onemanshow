@@ -48,6 +48,57 @@ function useMe() {
 }
 
 /**
+ * What the organisation can see, which is only its own. The list and the form
+ * exist so that scoping is exercised rather than described: a requirement
+ * saying rows record their organisation needs a row to point at.
+ */
+function Notes() {
+  const [body, setBody] = useState('');
+  // An empty list while loading and an empty list on failure look the same on
+  // purpose here: the suite asserts on what is present, and a spinner in a
+  // fixture is one more thing for a test to race.
+  const { data, refetch } = useQuery({
+    queryKey: ['notes'],
+    retry: false,
+    queryFn: async () => {
+      const response = await api.api.notes.$get();
+      if (!response.ok) throw new Error('notes unavailable');
+      return response.json();
+    },
+  });
+
+  return (
+    <div className="flex flex-col gap-2">
+      <ul data-testid="notes">
+        {(data?.notes ?? []).map((n) => (
+          <li key={n.id} data-testid="note">
+            {n.body}
+          </li>
+        ))}
+      </ul>
+      <input
+        className="rounded border px-2 py-1"
+        data-testid="note-body"
+        placeholder="a note"
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+      />
+      <Button
+        size="sm"
+        data-testid="add-note"
+        onClick={async () => {
+          await api.api.notes.$post({ json: { body } });
+          setBody('');
+          await refetch();
+        }}
+      >
+        add
+      </Button>
+    </div>
+  );
+}
+
+/**
  * The second observation. Where the greeting proves build, serving, API and
  * database, this proves a session is created, carried and read - which is the
  * whole of what makes a pre-wired capability a feature rather than a claim.
@@ -66,6 +117,7 @@ function Account() {
       <div className="flex flex-col gap-2">
         <p data-testid="account-email">{data.email}</p>
         <p data-testid="account-organisation">{data.organisation.name}</p>
+        <Notes />
         <Button
           size="sm"
           variant="outline"

@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
-import { greeting } from '@shared/schema';
+import { eq } from 'drizzle-orm';
+import { greeting, note } from '@shared/schema';
 import { flag } from '@shared/env';
 import type { connect } from '../db/client';
 import { createAuth, organisationOf } from './auth';
@@ -13,6 +14,17 @@ import { releaseFromVersion } from './observability';
  */
 export function createRoutes(connection: ReturnType<typeof connect>) {
   const auth = createAuth(connection);
+
+  /**
+   * The organisation the caller belongs to, or nothing if they are not signed
+   * in. One place, because every scoped query needs the same answer and the
+   * failure mode of computing it twice is that one copy forgets.
+   */
+  const scopeOf = async (headers: Headers): Promise<string | undefined> => {
+    const session = await auth.api.getSession({ headers });
+    if (session === null) return undefined;
+    return (await organisationOf(connection, session.user.id))?.id;
+  };
 
   return new Hono()
     // The identity library owns everything under this prefix: sign-up, sign-in,
@@ -39,6 +51,36 @@ export function createRoutes(connection: ReturnType<typeof connect>) {
         email: session.user.email,
         organisation: { id: organisation.id, name: organisation.name },
       });
+    })
+
+    // The organisation's notes, and only those. The scope is in the query
+    // rather than in a check afterwards: a filter that runs is harder to forget
+    // than a comparison somebody has to remember to write.
+    .get('/api/notes', async (c) => {
+      const scope = await scopeOf(c.req.raw.headers);
+      if (scope === undefined) return c.json({ error: 'not signed in' as const }, 401);
+      const rows = await connection.db
+        .select({ id: note.id, body: note.body })
+        .from(note)
+        .where(eq(note.organizationId, scope));
+      return c.json({ notes: rows });
+    })
+
+    .post('/api/notes', async (c) => {
+      const scope = await scopeOf(c.req.raw.headers);
+      if (scope === undefined) return c.json({ error: 'not signed in' as const }, 401);
+      const body = await c.req.json<{ body?: unknown }>();
+      if (typeof body.body !== 'string' || body.body.trim() === '') {
+        return c.json({ error: 'a note needs a body' as const }, 400);
+      }
+      // The organisation comes from the session, never from the request. Taking
+      // it from the caller would let anybody write into anybody's organisation
+      // by changing one field.
+      const [created] = await connection.db
+        .insert(note)
+        .values({ organizationId: scope, body: body.body.trim() })
+        .returning({ id: note.id, body: note.body });
+      return c.json({ note: created }, 201);
     })
     .get('/api/greeting', async (c) => {
       // Deliberate failure switch. It breaks the page while the process stays

@@ -1,5 +1,12 @@
 import { createAuth } from '../api/auth';
-import { greeting, SEEDED_EMAIL, SEEDED_MESSAGE, SEEDED_PASSWORD } from '@shared/schema';
+import {
+  greeting,
+  SEEDED_EMAIL,
+  SEEDED_MESSAGE,
+  SEEDED_OTHER_EMAIL,
+  SEEDED_OTHER_PASSWORD,
+  SEEDED_PASSWORD,
+} from '@shared/schema';
 import { organization, user } from '@shared/auth-schema';
 import { connect } from './client';
 
@@ -32,11 +39,17 @@ const auth = createAuth(connection, {
   // taken from whatever environment this happens to run in.
   baseURL: 'http://seed.invalid',
 });
-const created = await auth.api.signUpEmail({
-  body: { email: SEEDED_EMAIL, password: SEEDED_PASSWORD, name: 'Seeded' },
-});
-if (created.user === undefined) {
-  throw new Error('the seed could not create its identity');
+// Two identities, in two organisations. The second exists so that isolation is
+// a tested property: with one organisation, a query that ignores the scope
+// entirely returns the right answer and the test passes for the wrong reason.
+for (const [email, password, name] of [
+  [SEEDED_EMAIL, SEEDED_PASSWORD, 'Seeded'],
+  [SEEDED_OTHER_EMAIL, SEEDED_OTHER_PASSWORD, 'Other'],
+] as const) {
+  const created = await auth.api.signUpEmail({ body: { email, password, name } });
+  if (created.user === undefined) {
+    throw new Error(`the seed could not create ${email}`);
+  }
 }
 
 await sql.end();

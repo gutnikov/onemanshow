@@ -1,5 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { SEEDED_EMAIL, SEEDED_MESSAGE, SEEDED_PASSWORD } from '@shared/schema';
+import type { Page } from '@playwright/test';
+import {
+  SEEDED_EMAIL,
+  SEEDED_MESSAGE,
+  SEEDED_OTHER_EMAIL,
+  SEEDED_OTHER_PASSWORD,
+  SEEDED_PASSWORD,
+} from '@shared/schema';
 
 /**
  * The smoke set. Tagged so `ship/smoke` can select it, and deliberately
@@ -112,4 +119,63 @@ test('a wrong password is refused', async ({ page }) => {
 
   await expect(page.getByTestId('account-problem')).toBeVisible();
   await expect(page.getByTestId('account-email')).toHaveCount(0);
+});
+
+/**
+ * Signs out and waits until the form is back.
+ *
+ * The waiting is the point. Clicking and navigating immediately races the
+ * request: the click starts it, the navigation abandons it, the session
+ * survives, and the next sign-in finds a page that is already signed in. That
+ * failure looked like broken isolation and was a broken test.
+ */
+async function signOut(page: Page) {
+  await page.getByTestId('sign-out').click();
+  await expect(page.getByTestId('email')).toBeVisible();
+}
+
+/** Signs in on the account page and waits until the session is visible. */
+async function signIn(page: Page, email: string, password: string) {
+  await page.goto('/account');
+  await page.getByTestId('email').fill(email);
+  await page.getByTestId('password').fill(password);
+  await page.getByTestId('sign-in').click();
+  await expect(page.getByTestId('account-email')).toHaveText(email);
+}
+
+/**
+ * Staging only, and the test that makes organisation scoping real.
+ *
+ * With one organisation, a query that ignores the scope entirely returns the
+ * right answer - so this signs in as each of two seeded accounts in turn and
+ * checks that neither sees the other's note. That is why the seed creates two.
+ */
+test('an organisation sees only its own notes', async ({ page }) => {
+  const mine = `mine-${Date.now()}`;
+  const theirs = `theirs-${Date.now()}`;
+
+  await signIn(page, SEEDED_EMAIL, SEEDED_PASSWORD);
+  await page.getByTestId('note-body').fill(mine);
+  await page.getByTestId('add-note').click();
+  await expect(page.getByTestId('note').filter({ hasText: mine })).toHaveCount(1);
+  await signOut(page);
+
+  await signIn(page, SEEDED_OTHER_EMAIL, SEEDED_OTHER_PASSWORD);
+  // The other organisation's note is not merely hidden in the list - it is not
+  // in the answer at all, because the scope is in the query.
+  await expect(page.getByTestId('note').filter({ hasText: mine })).toHaveCount(0);
+  await page.getByTestId('note-body').fill(theirs);
+  await page.getByTestId('add-note').click();
+  await expect(page.getByTestId('note').filter({ hasText: theirs })).toHaveCount(1);
+  await signOut(page);
+
+  await signIn(page, SEEDED_EMAIL, SEEDED_PASSWORD);
+  await expect(page.getByTestId('note').filter({ hasText: mine })).toHaveCount(1);
+  await expect(page.getByTestId('note').filter({ hasText: theirs })).toHaveCount(0);
+});
+
+/** Writing without a session is refused, not silently scoped to nothing. */
+test('notes require a session', async ({ request }) => {
+  expect((await request.get('/api/notes')).status()).toBe(401);
+  expect((await request.post('/api/notes', { data: { body: 'x' } })).status()).toBe(401);
 });

@@ -22,8 +22,8 @@
 
 ## 4. Organisation scoping, exercised rather than asserted
 
-- [ ] 4.1 One organisation-scoped table, and a write the authenticated page performs. Verify the row records the organisation
-- [ ] 4.2 The suite signs in as the seeded account, writes, and reads back only what belongs to its organisation. Verify by seeding a second account in a second organisation and confirming neither sees the other's row. **Without this, the requirement that rows record their organisation is a claim no run exercises**
+- [x] 4.1 One organisation-scoped table, and a write the authenticated page performs. Verify the row records the organisation
+- [x] 4.2 The suite signs in as the seeded account, writes, and reads back only what belongs to its organisation. Verify by seeding a second account in a second organisation and confirming neither sees the other's row. **Without this, the requirement that rows record their organisation is a claim no run exercises**
 
 ## 5. Production exercises signing in
 
