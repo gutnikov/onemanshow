@@ -1,0 +1,44 @@
+name: open window
+description: >
+  Moves a change to released when its release succeeds, which is what opens the
+  observation window - the interval in which a change is released and not yet
+  closed. On a failed release it marks the change blocked and rolls nothing
+  back, because rewinding an artifact restores neither configuration nor schema.
+inputs:
+  ticket:
+    description: Ticket number
+    required: true
+  sha:
+    description: The commit that was released
+    required: true
+  outcome:
+    description: success, or anything else for failure
+    required: true
+  status:
+    description: The ticket's current status label
+    required: true
+  observation_window:
+    description: How long the window lasts, for the note in the thread
+    required: false
+    default: the configured window
+  run_url:
+    description: Link to the release run
+    required: false
+    default: ""
+  token:
+    description: Token able to edit and comment on issues
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: sh
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        TICKET_STATUS: ${{ inputs.status }}
+        OBSERVATION_WINDOW: ${{ inputs.observation_window }}
+        RUN_URL: ${{ inputs.run_url }}
+        TICKET: ${{ inputs.ticket }}
+        SHA: ${{ inputs.sha }}
+        OUTCOME: ${{ inputs.outcome }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: '"$ACTION_PATH/open-window" "$TICKET" "$SHA" "$OUTCOME"'

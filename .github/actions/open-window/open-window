@@ -1,0 +1,50 @@
+#!/bin/sh
+# ready-to-release -> released, and the observation window opens.
+#
+# The window is the interval in which a change is `released` and not yet
+# closed, so this transition is what starts it. Nothing else marks the
+# beginning: a release run's timestamp records when a deploy happened, and the
+# window is about what has been true since.
+set -eu
+
+TICKET="${1:?usage: open-window <ticket> <sha> <outcome>}"
+SHA="${2:?}"
+OUTCOME="${3:?}"
+STATUS="${TICKET_STATUS:-}"
+RUN="${RUN_URL:-}"
+WINDOW="${OBSERVATION_WINDOW:-the configured window}"
+
+case "$OUTCOME" in
+  success)
+    [ "$STATUS" = ready-to-release ] || [ "$STATUS" = released ] || {
+      echo "ticket #${TICKET} is in '${STATUS:-none}' - a release landed for a change that was not waiting to release, leaving it alone"
+      exit 0
+    }
+    if [ "$STATUS" = released ]; then
+      echo "ticket #${TICKET} is already released - the window is open"
+      exit 0
+    fi
+    gh issue edit "$TICKET" --remove-label status:ready-to-release --add-label status:released
+    gh issue comment "$TICKET" --body "$(printf '%s' "\
+## Released — the observation window is open
+
+Production is running \`${SHA}\`, the artifact that passed staging, promoted rather than rebuilt.
+
+**This ticket stays open for ${WINDOW}.** That is not an oversight: a change that is released and not yet closed is exactly what \"still under observation\" means, so the open ticket *is* the window. It closes itself when the window elapses and every configured source has been asked.
+
+Run: ${RUN}")"
+    echo "ticket #${TICKET}: ready-to-release -> released, window open"
+    ;;
+  *)
+    gh issue edit "$TICKET" --add-label blocked:rollback 2>/dev/null || true
+    gh issue comment "$TICKET" --body "$(printf '%s' "\
+## The release failed on \`${SHA}\`
+
+Marked \`blocked:rollback\`. Run: ${RUN}
+
+**Nothing has been rolled back.** Rewinding the artifact restores neither the configuration nor the schema, so it is not the safe default it appears to be — and if the migration has already run, the previous image may not work against the schema it finds, which turns \"step back until it works\" into a cascade that never terminates.
+
+This needs reading, not reflex. Say the word.")"
+    echo "ticket #${TICKET}: release failed, blocked:rollback"
+    ;;
+esac

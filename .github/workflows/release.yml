@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     # Declared, not inherited: the repository's ceiling is write so that the
     # reactive layer can move labels, and a job that says nothing receives it.
-    permissions: { contents: read }
+    permissions: { contents: read, issues: write, pull-requests: read }
     env:
       SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
       SHIP_IMAGE: ${{ inputs.image }}
@@ -119,3 +119,23 @@ jobs:
           echo "::error::Smoke failed after deploying ${{ inputs.sha }}." \
                "Production was rolled back one step. This is an incident, not a retry."
           exit 1
+
+      # The release landing is what opens the observation window, so the
+      # transition belongs here. always(): a failed release needs to reach a
+      # person more than a successful one does.
+      - id: ticket
+        if: always()
+        uses: gutnikov/onemanshow/.github/actions/ticket-status@main
+        with:
+          sha: ${{ inputs.sha }}
+          token: ${{ github.token }}
+      - name: open the observation window
+        if: always() && steps.ticket.outputs.ticket != ''
+        uses: gutnikov/onemanshow/.github/actions/open-window@main
+        with:
+          ticket: ${{ steps.ticket.outputs.ticket }}
+          sha: ${{ inputs.sha }}
+          outcome: ${{ job.status }}
+          status: ${{ steps.ticket.outputs.status }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          token: ${{ github.token }}
