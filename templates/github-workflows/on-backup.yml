@@ -9,6 +9,11 @@ on:
   schedule:
     - cron: '17 3 * * *'
   workflow_dispatch:
+    inputs:
+      keep:
+        description: How many dumps to keep, for a deliberate prune or a test of the limit
+        required: false
+        default: "14"
 jobs:
   backup:
     uses: gutnikov/onemanshow/.github/workflows/backup.yml@main
@@ -16,7 +21,7 @@ jobs:
       host: REPLACE_ME_SERVER_IP
       # Two weeks of daily dumps. The limit is enforced before writing, so the
       # disk never holds more than this even for a moment.
-      keep: 14
+      keep: ${{ fromJSON(inputs.keep || '14') }}
       host_key: |
         REPLACE_ME_KNOWN_HOSTS_LINES
     secrets: inherit
