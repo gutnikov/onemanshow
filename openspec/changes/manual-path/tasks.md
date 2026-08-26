@@ -14,9 +14,9 @@ deploy a wiring-only commit and then block the next merge on guard 4.
 ## 2. Approval that means this commit — the cheap version, chosen at the gate
 
 - [x] 2.1 The approval guard requires that `status:ready-to-release` is **currently** on the ticket, not merely that it once was. Today it reads the timeline alone, so the label being removed changes nothing **Done**, and it is the smaller half: the guard now asks whether the label is on the ticket at all, where before it only asked the timeline
-- [ ] 2.2 And that the label event is **newer than the head commit**. That is what closes the known sequence: after a push, the newest approval event is older than the head. **Verify by constructing the failure** — approve, push a commit, let automation drop the label, let revalidation write its mark on the new head, then attempt the merge by hand. Today every guard holds and an unapproved commit ships
-- [ ] 2.3 Verify the event path still works unchanged, since the event stops being the evidence and becomes only the trigger
-- [ ] 2.4 Record the race this leaves: approve and push inside the same second. The commit-scoped mark closes it and is a later change if it ever stops being theoretical
+- [x] 2.2 And that the label event is **newer than the head commit**. That is what closes the known sequence: after a push, the newest approval event is older than the head. **Verify by constructing the failure** — approve, push a commit, let automation drop the label, let revalidation write its mark on the new head, then attempt the merge by hand. Today every guard holds and an unapproved commit ships **Done, both conditions, on the real script with real data.** Label absent: `applied by gutnikov once, but the label is not on the ticket now`. Label present but stale: `applied by gutnikov at 18:32:50Z, older than d331f51 (18:33:03Z) - approved a different commit` — built on a closed ticket and a local scratch commit, so nothing in the segment was disturbed and nothing was pushed
+- [x] 2.3 Verify the event path still works unchanged, since the event stops being the evidence and becomes only the trigger **Done.** The real merge of this change ran from the label event and its approval guard passed on the new logic: `applied by gutnikov at 18:33:27Z, after 2026-08-26T20:23:51+02:00`
+- [x] 2.4 Record the race this leaves: approve and push inside the same second. The commit-scoped mark closes it and is a later change if it ever stops being theoretical **Recorded**, and measured: the refusal above fired on a thirteen-second gap, so the window this leaves is smaller than that
 
 ## 3. The ticket, derived and unambiguous
 
@@ -43,9 +43,9 @@ deploy a wiring-only commit and then block the next merge on guard 4.
 
 ## 7. The rehearsal, deliberately and before this merges
 
-- [ ] 7.1 `smoke-signs-in` 3.2: with a knowingly wrong credential in `secrets/ci.yaml`, dispatch a release against today's head and confirm the pre-deploy probe stops it — nothing migrated, nothing deployed, nothing rolled back, and the ticket told production is untouched **because that is what happened**
-- [ ] 7.2 Restore the credential and confirm a release passes both probes again
-- [ ] 7.3 Record the price honestly: two reconfigure deploys of an unchanged version, and a `blocked:rollback` label on a closed ticket, removed afterwards with the thread told it was staged
+- [ ] 7.1 **Deferred on purpose, to the next release of a deployable change.** Doing it now would mean dispatching a release while main's head is this change itself — which touches no deployable path. The pre-deploy probe is expected to stop that release, but if it did not, the release would deploy a wiring-only commit to production and break merge guard 4 for the next change: exactly the leak this change just stopped. The next deployable change has a release anyway, its head is deployable, and a probe failure there costs nothing. `smoke-signs-in` 3.2: with a knowingly wrong credential in `secrets/ci.yaml`, dispatch a release against today's head and confirm the pre-deploy probe stops it — nothing migrated, nothing deployed, nothing rolled back, and the ticket told production is untouched **because that is what happened**
+- [ ] 7.2 (same deferral) Restore the credential and confirm a release passes both probes again
+- [ ] 7.3 (same deferral) Record the price honestly: two reconfigure deploys of an unchanged version, and a `blocked:rollback` label on a closed ticket, removed afterwards with the thread told it was staged
 
 ## 8. Found by wasting a validation
 
