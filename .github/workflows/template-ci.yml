@@ -24,3 +24,7 @@ jobs:
       # nothing about what Actions accepts.
       - name: action manifests must carry only the keys Actions defines
         run: python3 scripts/check-action-manifests.py --annotate
+      # The window evaluation must be able to report unhealthy. Every check in
+      # this project that had never failed turned out to be unable to.
+      - name: the window evaluation must be able to refuse
+        run: sh scripts/test-health-window.sh
