@@ -14,18 +14,18 @@ the stand**, never against production.
 ## 2. The credentials reach the release
 
 - [x] 2.1 The release job decrypts `secrets/ci.yaml` as well, masks both values before anything can print them, and exports them at job level rather than step level — the rollback composite runs the same hook and would otherwise run without them
-- [ ] 2.2 Verify the values arrive non-empty in the job. A credential declared and blank is a state this pipeline has been bitten by twice, and both times the check that should have caught it read the wrong thing
+- [x] 2.2 **Verified by the release of 2026-08-26**: both probes signed in, which they cannot do with a blank or wrong credential. Verify the values arrive non-empty in the job. A credential declared and blank is a state this pipeline has been bitten by twice, and both times the check that should have caught it read the wrong thing
 
 ## 3. Before the deploy
 
 - [x] 3.1 The release asks the **running** production whether the synthetic account can still sign in, and stops without deploying if it cannot. This is the step that makes a later failure attributable, and it runs against the one image in the release already known to work
-- [ ] 3.2 Verify it stops the release: point it at a wrong password once and confirm nothing was deployed and nothing was rolled back
+- [ ] 3.2 **Deferred to the next release, deliberately.** Doing it now would fail a release for ticket #24 while its observation window is open and would label a released change `blocked:rollback`. The next change is the merge-by-hand fix, and its release is where this belongs. Verify it stops the release: point it at a wrong password once and confirm nothing was deployed and nothing was rolled back
 
 ## 4. After the deploy
 
 - [x] 4.1 The authenticated check signs in and reads a page that requires a session, writing nothing to `note`. Reuse the suite's own sign-in helper so the throttle is respected by one piece of code rather than two
 - [x] 4.2 **Verify it can fail** — by hand, against the stand, with a wrong password, and it must go red. Not against production: doing it there rolls production back for real, and the rollback's cascade guard then reports the schema having moved when nothing of the sort happened
-- [ ] 4.3 Verify no `note` rows appeared after a release, and record the two `session` rows it does leave, so nobody later reads "writes nothing" as literal
+- [x] 4.3 **Verified after the release**, through the product rather than the database: the synthetic account owns zero notes, and its session list holds five rows that decompose exactly — the sign-up that created it, one sign-in by hand when it was made, **two from this release's probes**, and one from the check just now. Two per release, as the proposal said. Worth recording how nearly this went wrong: the first count said one note, because `/api/notes` answers `{"notes": []}` and the check measured the length of the object rather than the list. A false alarm caught by looking at the payload instead of the number
 
 ## 5. Fix what the examination found, where this change makes it load-bearing
 
