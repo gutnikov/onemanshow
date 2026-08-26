@@ -142,6 +142,10 @@ The commit that reaches the main branch SHALL be the same commit that was built 
 
 This is why a branch must be up to date with main before merging: up to date plus fast-forward means the validated commit becomes main's head unchanged.
 
+The merge SHALL be performed by automation, and automation SHALL refuse it unless all six guards hold: approval recorded; the pipeline green on the commit being merged; the branch a fast-forward from main; production equal to the last deployable commit on main; no other change in `released` with an open window; no active incident. All six are readable from the tools, and reading them is not the same as checking them — until the merge is performed by something that refuses, they are advice to whoever merges.
+
+The guard for a green pipeline SHALL be checked against the commit that was validated, not against the commit a run reports. A validation run started by dispatch reports the branch it was dispatched from, so a run's own commit is not evidence about the change.
+
 #### Scenario: The branch is up to date
 - **WHEN** an approved change whose branch is up to date with main is merged
 - **THEN** main's new head is the commit that was validated, and the artifact built for it is the one promoted
@@ -150,14 +154,22 @@ This is why a branch must be up to date with main before merging: up to date plu
 - **WHEN** merging would produce a commit that was never built or validated
 - **THEN** the merge is refused, because promoting would require rebuilding and rebuilding produces an artifact nobody verified
 
+#### Scenario: A guard does not hold
+- **WHEN** a change is approved but production is behind the last deployable commit on main
+- **THEN** automation refuses the merge and says which guard failed, rather than merging and leaving an unresolved rollback buried
+
+#### Scenario: A run is mistaken for evidence
+- **WHEN** the green-pipeline guard is evaluated for a change whose validation was dispatched
+- **THEN** the sha the run was given is what is checked, and the branch the run reports as its own commit is not accepted in its place
+
 ### Requirement: Production and the main branch agree
-After a successful release the commit running in production SHALL equal the most recent commit on main that touched a **deployable** path. Commits that touch only documentation, planning artifacts or pipeline wiring SHALL NOT release.
+After a successful release the commit running in production SHALL equal the most recent commit on main that touched a **deployable** path. Commits that touch only documentation, planning artifacts, pipeline wiring, project configuration or provisioning scripts SHALL NOT release.
 
-This overturns the earlier requirement that no commit, including documentation or bookkeeping, may bypass the pipeline. That requirement was implemented faithfully and the result was worse than the rule it enforced: the archive commit that closes a change is pushed straight to main, so it released — building a new image from itself and deploying it to production with no staging validation, then reopening an observation window with nobody observing. The closing step of every change broke the invariant the rest of the pipeline exists to protect.
+This corrects an overstatement in the previous version of this requirement, which said that releasing on a documentation commit deployed an unvalidated image to production. It does not, and cannot: the release promotes a pre-validated artifact and refuses to build one, so a commit that never went through a pull request has no image and the release **fails** at the promotion check. What actually happens is a red release on every close, and production left unequal to main's tip — which then trips this very guard and blocks the next change until someone reconciles it by hand.
 
-The alternative was to send the archive commit through a pull request and both staging runs. That costs a full validation cycle per change to rename a directory, and validates nothing, because the artifact it produces differs from the released one only in files the artifact does not contain.
+That is still worth preventing, and for a reason the overstatement obscured: a release that is red every time a change closes is red as a matter of routine, and routine red is not read. The pipeline's own history contains a stretch where production sat three commits behind main behind exactly this signal.
 
-What is given up is the exactness of the comparison: main's tip may now sit ahead of production with nothing wrong. The guard therefore reads the last deployable commit rather than the tip, and comparing against the tip would refuse every change that follows a documentation commit.
+The set of ignored paths SHALL be expressed as an exclusion list rather than a list of deployable paths, because the two constructions fail differently. A path missing from an exclusion list produces a release that fails loudly at promotion. A path missing from a list of deployable paths produces a real change that never deploys, while this guard — computing the last deployable commit from the same list — reports agreement. One failure announces itself; the other is silent and satisfies the check meant to catch it.
 
 #### Scenario: Checking pipeline health
 - **WHEN** the deployed image tag is compared with the most recent deployable commit on main
@@ -170,6 +182,10 @@ What is given up is the exactness of the comparison: main's tip may now sit ahea
 #### Scenario: A change follows a documentation commit
 - **WHEN** the next change's merge guards are checked and main's tip is a documentation commit
 - **THEN** production matching the last deployable commit satisfies the guard, and the tip being ahead is not treated as an unresolved rollback
+
+#### Scenario: A non-deployable path was not excluded
+- **WHEN** a commit touching only project configuration is pushed and the exclusion list does not cover it
+- **THEN** the release fails at the promotion check because no validated image exists for that commit, rather than an image being built for it
 
 ### Requirement: Post-deploy verification
 Immediately after deploying to production the pipeline SHALL run `ship/smoke` against production and SHALL treat its failure as a production incident.

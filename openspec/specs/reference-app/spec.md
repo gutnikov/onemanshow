@@ -19,6 +19,8 @@ The reference application SHALL serve one page that displays a value it obtained
 ### Requirement: Readiness endpoint reflects real readiness
 The application SHALL expose `/health`, which SHALL return a 2xx response only when the application can actually serve requests, including that its database is reachable and that its schema and its code agree. Drift SHALL be detected in **both** directions: a schema behind the code and a schema ahead of it are each a non-ready state. It SHALL NOT return a static success.
 
+The response SHALL also carry the commit this build was deployed as, so the pipeline can ask production what it is running. It is reported on the readiness endpoint rather than one of its own because a caller that wants the identity always wants to know whether the thing is alive as well, and two endpoints would let those answers disagree.
+
 #### Scenario: Database unreachable
 - **WHEN** the application is running but cannot reach its database
 - **THEN** `/health` returns a non-2xx response
@@ -34,6 +36,14 @@ The application SHALL expose `/health`, which SHALL return a 2xx response only w
 #### Scenario: Fully ready
 - **WHEN** the application can serve requests and its schema is current
 - **THEN** `/health` returns 2xx
+
+#### Scenario: The response identifies the build
+- **WHEN** `/health` is requested, ready or not
+- **THEN** it carries the commit this build was deployed as, taken from what the deploy tool supplied, so an unhealthy production can still be identified
+
+#### Scenario: Nothing supplied an identity
+- **WHEN** the application runs outside a deploy, with no version supplied
+- **THEN** the field is absent rather than invented, so a caller can tell "not deployed" from a mismatch
 
 ### Requirement: A smoke subset of the end-to-end tests
 The reference application SHALL mark a subset of its end-to-end tests as the smoke set, and `ship/smoke` SHALL run only that subset. The smoke set SHALL exercise real user-visible paths rather than only a health check, and SHALL be free of mutations.
