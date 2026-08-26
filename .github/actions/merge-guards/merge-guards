@@ -59,12 +59,8 @@ lastdep="$(git log -1 --format=%H origin/main -- . $IGNORE)"
 # credentials that can deploy, to learn a fact the artifact knows about itself.
 running="${PRODUCTION_COMMIT:-}"
 if [ -z "$running" ] && [ -n "${PRODUCTION_HEALTH_URL:-}" ]; then
-  # -f is deliberately absent: an unready production still answers with its
-  # identity, and refusing to read it would blind the guard during an incident.
-  running="$(curl -sS --max-time 15 "$PRODUCTION_HEALTH_URL" \
-              | python3 -c 'import json,sys
-try: print(json.load(sys.stdin).get("release") or "")
-except Exception: print("")' 2>/dev/null || true)"
+  running="$("${ACTION_DIR}/../production-commit/production-commit" \
+              "$PRODUCTION_HEALTH_URL" 2>/dev/null || true)"
 fi
 if [ -z "$running" ]; then
   bad production "production did not report what it is running - unknown is not agreement"

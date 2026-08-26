@@ -1,0 +1,26 @@
+#!/bin/sh
+# What production is running, asked of production.
+#
+# One definition, used by the merge guard and by the configuration redeploy.
+# Both need the same fact and a copy in each would be a copy to keep in step -
+# and today's lesson is that two copies of a fact drift quietly.
+#
+# Asked of the artifact rather than read from a log because a log records what
+# was intended. A rollback is exactly when intent and reality differ, and both
+# callers are consulted precisely then.
+#
+# -f is deliberately absent from curl: an unready production still answers with
+# its identity, and refusing to read it would blind both callers during the
+# incident they exist for.
+set -eu
+
+URL="${1:?usage: production-commit <health-url>}"
+
+body="$(curl -sS --max-time 20 "$URL" 2>/dev/null || true)"
+commit="$(printf '%s' "$body" | sed -n 's/.*"release"[[:space:]]*:[[:space:]]*"\([0-9a-f]\{40\}\)".*/\1/p')"
+
+if [ -z "$commit" ]; then
+  echo "::error::${URL} did not report a commit. An application that does not say what it is cannot be compared with anything - unknown is not agreement." >&2
+  exit 1
+fi
+printf '%s\n' "$commit"

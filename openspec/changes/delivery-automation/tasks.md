@@ -25,7 +25,7 @@
 
 ## 4. Applying a change that is not an artifact
 
-- [ ] 4.0 Give configuration a way to reach production. A change to `secrets/**` alters what the container is given at deploy time but produces no new image, so the release has nothing to promote and fails — which is what happened on 2026-08-25, unnoticed for twenty minutes, and was surfaced by the fourth guard rather than by anyone reading the red run. Excluding secrets from the trigger stops the failed release and leaves the real gap: a rotated credential does not reach production until something redeploys the running artifact, and until the old credential is revoked nothing looks wrong. Needs a path that redeploys the current version with current configuration — the rollback action already does something close. Verify by rotating a credential and observing production pick it up
+- [x] 4.0 Give configuration a way to reach production. A change to `secrets/**` alters what the container is given at deploy time but produces no new image, so the release has nothing to promote and fails — which is what happened on 2026-08-25, unnoticed for twenty minutes, and was surfaced by the fourth guard rather than by anyone reading the red run. Excluding secrets from the trigger stops the failed release and leaves the real gap: a rotated credential does not reach production until something redeploys the running artifact, and until the old credential is revoked nothing looks wrong. Needs a path that redeploys the current version with current configuration — the rollback action already does something close. Verify by rotating a credential and observing production pick it up
 
 ## 5. Bounding repetition
 

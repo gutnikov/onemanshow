@@ -1,0 +1,101 @@
+# Applying a change that is not an artifact.
+#
+# A secrets change alters what the container is given, not what the image
+# contains. The release promotes artifacts, so it has nothing to promote for
+# such a commit and fails - which happened once, sat red for twenty minutes
+# unnoticed, and was found by a merge guard rather than by anyone reading it.
+#
+# Excluding secrets from the release trigger stops the red run and leaves the
+# real problem: a rotated credential does not reach production until something
+# redeploys, and until the old credential is revoked nothing looks wrong. This
+# is that something. It deploys the version production is already running, so no
+# artifact is built and none is promoted - only the configuration around it
+# changes.
+name: reconfigure
+on:
+  workflow_call:
+    inputs:
+      image:
+        description: Repository path WITHOUT the registry host
+        required: true
+        type: string
+      registry_user: { required: true, type: string }
+      host: { required: true, type: string }
+      domain: { required: true, type: string }
+      service: { description: Service name of the production destination, required: true, type: string }
+      host_key: { required: false, type: string, default: "" }
+    secrets:
+      SOPS_AGE_KEY: { required: true }
+      SSH_PRIVATE_KEY: { required: true }
+jobs:
+  reconfigure:
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    env:
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+      SHIP_IMAGE: ${{ inputs.image }}
+      SHIP_HOST: ${{ inputs.host }}
+      SHIP_DOMAIN: ${{ inputs.domain }}
+      SHIP_REGISTRY_USER: ${{ inputs.registry_user }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: install sops
+        run: |
+          curl -fsSL -o /tmp/sops https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64
+          sudo install -m 0755 /tmp/sops /usr/local/bin/sops
+      - uses: gutnikov/onemanshow/.github/actions/ssh-agentless@main
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ inputs.host }}
+          host_key: ${{ inputs.host_key }}
+
+      - name: read production credentials
+        run: |
+          set -eu
+          read_secret() {
+            v="$(sops -d --extract "[\"$1\"]" "secrets/prod.yaml")"
+            echo "::add-mask::$v"
+            echo "$2=$v" >> "$GITHUB_ENV"
+          }
+          read_secret REGISTRY_TOKEN_RO KAMAL_REGISTRY_PASSWORD
+          read_secret DATABASE_URL DATABASE_URL
+          read_secret POSTGRES_PASSWORD POSTGRES_PASSWORD
+          read_secret DATABASE_URL_TUNNEL DATABASE_URL_TUNNEL
+          read_secret SENTRY_DSN SENTRY_DSN
+
+      # Asked of production, which is the only source that knows. A deploy log
+      # records intent; this has to redeploy what is actually there, or it would
+      # quietly move production to a different version under the guise of
+      # applying configuration.
+      - id: running
+        run: |
+          set -eu
+          v="$(.github/actions/production-commit/production-commit \
+                 "https://${{ inputs.domain }}/health")"
+          echo "sha=$v" >> "$GITHUB_OUTPUT"
+          echo "redeploying $v with current configuration"
+
+      - name: deploy the same version again
+        uses: gutnikov/onemanshow/.github/actions/kamal@main
+        with: { args: "deploy --skip-push --version ${{ steps.running.outputs.sha }}-production" }
+
+      - name: smoke
+        env: { SHIP_URL: "https://${{ inputs.domain }}" }
+        uses: gutnikov/onemanshow/.github/actions/run-hook@main
+        with: { name: smoke }
+
+      # No rollback here on purpose. If the new configuration is wrong,
+      # redeploying the same artifact again would apply the same wrong
+      # configuration, and the previous configuration is not in the artifact to
+      # go back to. That is the shape of every configuration failure: rewinding
+      # the artifact restores nothing that lives outside it.
+      - name: what a failure here means
+        if: failure()
+        run: |
+          echo "::error::Production did not come back healthy after reconfiguring." \
+               "The artifact is unchanged, so the configuration is what moved." \
+               "Rolling back the image would not restore the previous configuration -" \
+               "it does not live in the image. Fix the configuration and run this again."
