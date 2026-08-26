@@ -8,11 +8,21 @@ set -eu
 
 TICKET="${1:?usage: pr-head <ticket>}"
 
+# Open first, then any state. Restricted to open, this failed the whole run
+# when an approval label was applied again after the merge - a repeated
+# transition is supposed to find the work already done, and instead it found
+# nothing and said so as an error. The merge itself already handles a head that
+# is on main; it just needed to be given one.
 pr="$(gh pr list --state open --json number,headRefName,headRefOid \
         -q "[.[] | select(.headRefName | startswith(\"ship/${TICKET}-\"))] | first")"
 if [ -z "$pr" ] || [ "$pr" = null ]; then
-  echo "::error::no open pull request on a branch named ship/${TICKET}-..."
-  exit 1
+  pr="$(gh pr list --state all --json number,headRefName,headRefOid,state \
+          -q "[.[] | select(.headRefName | startswith(\"ship/${TICKET}-\"))] | sort_by(.number) | last")"
+  if [ -z "$pr" ] || [ "$pr" = null ]; then
+    echo "::error::no pull request, in any state, on a branch named ship/${TICKET}-..."
+    exit 1
+  fi
+  echo "no open pull request; using the most recent one, which is $(printf '%s' "$pr" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("state","?"))')"
 fi
 printf '%s' "$pr" | python3 -c '
 import json, os, sys
