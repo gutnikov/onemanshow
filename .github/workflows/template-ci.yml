@@ -5,6 +5,11 @@ name: template ci
 on:
   pull_request:
   push: { branches: [main] }
+  # This is the required check on every pull request here, and it is triggered
+  # by exactly the two event kinds that stalled for over an hour on 2026-08-26 -
+  # so without this, a change that fixes event fragility could not pass its own
+  # CI while the host was unwell.
+  workflow_dispatch:
 jobs:
   check:
     runs-on: ubuntu-latest

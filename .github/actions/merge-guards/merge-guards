@@ -23,13 +23,50 @@ bad()  { printf '  FAIL  %-28s %s\n' "$1" "$2"; failed=$((failed+1)); }
 # The label carries the approval, so the question is who applied it. If
 # automation could apply it, the reservation of approval to a person would be
 # decoration - so the actor is checked, not just the label.
-actor="$(gh api "repos/${REPO}/issues/${TICKET}/timeline" --paginate \
-          -q '[.[] | select(.event == "labeled" and .label.name == "status:ready-to-release")] | last | .actor.login' \
+# Three questions, not one, and the two new ones exist because this guard used
+# to be propped up by the event that triggered it. Reading the timeline alone
+# certifies that a person approved *something*: the record survives the label
+# being removed, so approve, push a commit, let automation drop the label to
+# staging and let revalidation write a fresh mark on the new head - and every
+# guard held for a commit nobody approved. On the event path the trigger itself
+# was the missing proof. A path a person can take by hand has no such trigger,
+# so the proof has to be here.
+approval="$(gh api "repos/${REPO}/issues/${TICKET}/timeline" --paginate \
+          -q '[.[] | select(.event == "labeled" and .label.name == "status:ready-to-release")] | last | "\(.actor.login) \(.created_at)"' \
           2>/dev/null || true)"
+actor="${approval%% *}"
+approved_at="${approval##* }"
+
+# Is the label there now, or only in the record of having been there?
+still_labelled="$(gh api "repos/${REPO}/issues/${TICKET}/labels" \
+                  -q '[.[].name] | index("status:ready-to-release") // "no"' 2>/dev/null || echo no)"
+
+# Is the approval newer than what it would be approving? This is the cheap
+# version of a commit-scoped approval, chosen deliberately: it closes the
+# sequence above, because after a push the newest approval is older than the
+# head. It leaves a narrower race - approve and push inside the same second -
+# which a mark written on the head itself would close, and which is a later
+# change.
+head_at="$(git show -s --format=%cI "$HEAD" 2>/dev/null || true)"
+newer=unknown
+if [ -n "$approved_at" ] && [ -n "$head_at" ]; then
+  newer="$(python3 -c 'import sys; from datetime import datetime; a,h=(datetime.fromisoformat(x.replace("Z","+00:00")) for x in sys.argv[1:3]); print("yes" if a>h else "no")' "$approved_at" "$head_at" 2>/dev/null || echo unknown)"
+fi
+
 case "$actor" in
   "" | null)          bad approval "no record of the ready-to-release label being applied" ;;
   *"[bot]" | *"-bot") bad approval "applied by ${actor}, which is not a person" ;;
-  *)                  ok approval "applied by ${actor}" ;;
+  *)
+    if [ "$still_labelled" = no ]; then
+      bad approval "applied by ${actor} once, but the label is not on the ticket now - a new commit withdraws approval, and the record of it does not"
+    elif [ "$newer" = no ]; then
+      bad approval "applied by ${actor} at ${approved_at}, older than ${HEAD} (${head_at}) - approved a different commit"
+    elif [ "$newer" = unknown ]; then
+      bad approval "could not compare the approval to the commit it would approve - unknown is not agreement"
+    else
+      ok approval "applied by ${actor} at ${approved_at}, after ${head_at}"
+    fi
+    ;;
 esac
 
 # --- 2. the pipeline green on THIS commit ------------------------------------

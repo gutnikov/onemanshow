@@ -116,6 +116,37 @@ Say the word when you want the work started; the state is readable from the tool
   fi
 fi
 
+# --- a change that stopped without anybody being told ------------------------
+# Reports, and deliberately does not act. This is the half of the problem that
+# dispatch triggers do not solve: they let a person move a stuck change, but
+# only if they already know it is stuck. An approved change whose label event was
+# never delivered looks exactly like an approved change somebody is thinking
+# about.
+#
+# Not acting is the point. Merging on a timer would put a release behind a clock
+# rather than behind a decision, and the decision is the thing this pipeline is
+# careful about. Saying so costs two queries in a run that is already happening.
+STUCK_MINUTES="${STUCK_AFTER_MINUTES:-15}"
+for t in $(gh issue list --state open --label status:ready-to-release --json number -q '.[].number'); do
+  since="$(gh api "repos/${REPO}/issues/${t}/timeline" --paginate \
+            -q '[.[] | select(.event == "labeled" and .label.name == "status:ready-to-release")] | last | .created_at' \
+            2>/dev/null || true)"
+  if [ -z "$since" ] || [ "$since" = null ]; then
+    echo "  #${t} is in ready-to-release with no record of the label being applied - that is worth a look on its own"
+    continue
+  fi
+  at="$(date -u -d "$since" +%s 2>/dev/null || date -u -jf '%Y-%m-%dT%H:%M:%SZ' "$since" +%s 2>/dev/null || echo 0)"
+  if [ "$at" -eq 0 ]; then
+    echo "  #${t}: could not read when it was approved (${since}) - not guessing"
+    continue
+  fi
+  waited=$(( (now - at) / 60 ))
+  if [ "$waited" -ge "$STUCK_MINUTES" ]; then
+    echo "  #${t} approved ${waited}m ago and still in ready-to-release - the merge may never have been asked for." \
+         "A person can start it by hand; nothing here will."
+  fi
+done
+
 echo "window check finished, ${acted} action(s)"
 # A window that could not be evaluated must not look like a window with nothing
 # to do. The run fails so that the absence is visible where runs are listed.

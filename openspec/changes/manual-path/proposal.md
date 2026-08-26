@@ -141,13 +141,16 @@ So the rehearsal is scheduled deliberately, before this change merges, against
 today's head, with the label removed afterwards and the thread told it was
 staged.
 
-## Still undecided, and left for the gate rather than answered here
+## Decided at the gate
 
-- **Whether the approval mark is worth its weight now.** It is the honest fix and
-  it is the largest piece of work here. The cheaper version — refuse unless the
-  label is *currently* applied and its event is newer than the head commit — is
-  two queries and closes the known sequence, while leaving a narrower race. A
-  person may reasonably prefer the cheap one and a note.
-- **Whether the detector belongs in this change or the next.** It is the part
-  that answers "never told", and it is also the part that can be added without
-  touching the merge at all.
+**The cheap approval check, not the commit-scoped mark.** The guard refuses
+unless `status:ready-to-release` is *currently* on the ticket **and** the label
+event that put it there is newer than the head commit. That closes the known
+sequence — approve, push, the label drops, revalidation writes a fresh mark —
+because after the push the newest approval event is older than the head. It
+leaves a narrower race: approve, and push within the same second. Written down
+rather than pretended away, and the full mark stays available as a later change
+if that race ever stops being theoretical.
+
+**The detector belongs here.** It is the only part that answers the half of the
+Why the dispatch triggers do not, and it is the cheapest thing in the change.

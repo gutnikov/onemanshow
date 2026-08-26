@@ -16,7 +16,12 @@ on:
         type: string
 jobs:
   merge:
-    if: github.event.label.name == 'status:ready-to-release'
+    # A dispatch is allowed in, because event delivery is not ours. The label
+    # filter still applies to event-driven runs so that other labels do not
+    # start a merge - and note that filtering here makes the run green when it
+    # skips, which is why nothing downstream treats "the run passed" as
+    # evidence that a merge happened.
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'status:ready-to-release'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -29,19 +34,49 @@ jobs:
       # deployable commit, neither of which a shallow clone can answer.
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      # The ticket, derived when the event did not carry one. Exclusivity makes
+      # the answer usually unique, but not always: the lifecycle deliberately
+      # allows a hotfix onto an occupied segment, pausing the change already
+      # there, and a paused change keeps the status it was interrupted in. So
+      # two tickets can carry this label by design, and picking one would be a
+      # coin toss that ships the wrong change past six green guards. Ambiguity
+      # is refused, not resolved.
+      - id: ticket
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FROM_EVENT: ${{ github.event.issue.number }}
+        run: |
+          set -eu
+          if [ -n "${FROM_EVENT:-}" ]; then
+            echo "ticket=${FROM_EVENT}" >> "$GITHUB_OUTPUT"
+            echo "ticket #${FROM_EVENT}, named by the event"
+            exit 0
+          fi
+          found="$(gh issue list --label status:ready-to-release --state open \
+                     --json number --jq '[.[].number] | join(" ")')"
+          count=0
+          for n in $found; do count=$((count + 1)); done
+          case "$count" in
+            0) echo "::error::nothing is in ready-to-release, so there is nothing to merge"; exit 1 ;;
+            1) echo "ticket #${found}, derived from the label"; echo "ticket=${found}" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::#${found} all carry status:ready-to-release." \
+                    "Which one to merge is a decision, not a lookup - apply the label to one of them," \
+                    "or say which by running this from its own label event."; exit 1 ;;
+          esac
+
       - id: pr
         uses: gutnikov/onemanshow/.github/actions/pr-head@main
         with:
-          ticket: ${{ github.event.issue.number }}
+          ticket: ${{ steps.ticket.outputs.ticket }}
           token: ${{ github.token }}
       - uses: gutnikov/onemanshow/.github/actions/merge-guards@main
         with:
-          ticket: ${{ github.event.issue.number }}
+          ticket: ${{ steps.ticket.outputs.ticket }}
           sha: ${{ steps.pr.outputs.head }}
           production_health_url: ${{ inputs.production_health_url }}
           token: ${{ github.token }}
       - uses: gutnikov/onemanshow/.github/actions/merge-change@main
         with:
-          ticket: ${{ github.event.issue.number }}
+          ticket: ${{ steps.ticket.outputs.ticket }}
           head: ${{ steps.pr.outputs.head }}
           token: ${{ github.token }}

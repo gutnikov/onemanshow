@@ -16,6 +16,9 @@ head="${2:?usage: merge-change <ticket> <head-sha>}"
 echo "merging ${head}"
 
 git fetch -q origin main
+# What main was before this merge, read before the push moves it. The release
+# decision below needs it, and after the push it is gone.
+base="$(git rev-parse origin/main)"
 if git merge-base --is-ancestor "$head" origin/main; then
   # Two actors reaching the same transition is expected, so the second finds
   # the work done rather than doing it twice.
@@ -37,8 +40,43 @@ echo "head=$head" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 # the chain is visible in the run list rather than implied, and no additional
 # credential exists to be rotated or leaked. It is bounded by the same thing
 # that bounds the merge - one merge per ticket, and the guards refuse a second.
-gh workflow run "${RELEASE_WORKFLOW:-on-main.yml}" --ref main
-echo "release dispatched for ${head}"
+# But only for a commit that has something to deploy.
+#
+# This dispatch used to be unconditional, and that quietly contradicted the
+# requirement it lives next to: commits touching only documentation, planning
+# artifacts, pipeline wiring or configuration SHALL NOT release. The push
+# trigger honours that list and merge guard 4 honours it - this did not, so a
+# wiring-only change went to production, and the guard then refused the NEXT
+# change with "unresolved rollback or a leaked release". Three readers of one
+# list, one of them not reading it.
+#
+# The list comes from the trigger, through the same script the guard uses. A
+# copy here would be wrong the moment a project excludes a path of its own.
+TRIGGER_FILE="${RELEASE_WORKFLOW_FILE:-.github/workflows/on-main.yml}"
+IGNORE="$("${ACTION_PATH:-$(dirname "$0")}/../merge-guards/deployable-excludes.py" "$TRIGGER_FILE")"
+
+# Three outcomes, not two. `git diff --quiet` answers 0 for no difference and 1
+# for a difference, and anything else is a failure to answer - which must not be
+# read as "deployable", because that is the reading that releases a commit
+# nobody could classify.
+# shellcheck disable=SC2086
+git diff --quiet "$base" "$head" -- . $IGNORE && deployable=no || deployable=$?
+case "$deployable" in
+  no)
+    echo "no deployable path changed between ${base} and ${head} - not dispatching a release"
+    echo "production keeps running what it was running, which is what guard 4 expects"
+    ;;
+  1)
+    gh workflow run "${RELEASE_WORKFLOW:-on-main.yml}" --ref main
+    echo "release dispatched for ${head}"
+    ;;
+  *)
+    echo "::error::could not tell whether ${head} touches a deployable path (git exited ${deployable})." \
+         "Refusing to guess: guessing yes releases a commit nobody classified, and guessing no" \
+         "leaves production behind main with the next merge blocked."
+    exit 1
+    ;;
+esac
 
 gh issue comment "$TICKET" --body "$(printf '%s' "\
 All six guards held, so \`${head}\` is now main's head — by fast-forward, which means the commit that was validated is the commit on main, unchanged. Nothing was rebuilt, and the artifact promoted to production is the one that passed staging.

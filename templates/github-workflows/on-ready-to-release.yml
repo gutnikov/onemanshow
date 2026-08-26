@@ -3,6 +3,10 @@ name: on ready to release
 on:
   issues:
     types: [labeled]
+  # The merge is the stage where a lost event costs the most: the change is
+  # approved and cannot move. One label event produced no run at all on
+  # 2026-08-26, where re-applying the label produced one within a second.
+  workflow_dispatch:
 jobs:
   merge:
     uses: gutnikov/onemanshow/.github/workflows/merge.yml@main

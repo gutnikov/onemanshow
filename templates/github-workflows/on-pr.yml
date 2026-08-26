@@ -1,6 +1,10 @@
 # Instance wiring: replace every REPLACE_ME and commit this to your own repo.
 name: on pull request
-on: { pull_request: { branches: [main] } }
+on:
+  pull_request: { branches: [main] }
+  # So a person can validate a change when the host does not deliver the event.
+  # It stalled for over an hour on 2026-08-26.
+  workflow_dispatch:
 jobs:
   pr:
     uses: gutnikov/onemanshow/.github/workflows/pr.yml@main

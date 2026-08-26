@@ -11,11 +11,12 @@ deploy a wiring-only commit and then block the next merge on guard 4.
 - [ ] 1.1 `merge-change` dispatches the release only when the merged commit touches a deployable path, reading the exclusion list guard 4 already reads rather than keeping a second copy. Verify by merging a wiring-only commit and watching it say it is not releasing, and by confirming production still reports the previous commit
 - [ ] 1.2 Verify the other direction, which is the one that matters: a commit that *does* touch a deployable path still releases. A guard that only ever refuses is indistinguishable from a broken one
 
-## 2. Approval that names a commit
+## 2. Approval that means this commit — the cheap version, chosen at the gate
 
-- [ ] 2.1 Approval leaves a mark on the head it approved, written when a person applies the label, in the shape the validation mark already uses. Verify the mark exists on the right commit and nowhere else
-- [ ] 2.2 A guard reads it and refuses a head it does not match. **Verify by constructing the failure**: approve, push a commit, let the label drop and revalidation write its own mark on the new head, then attempt the merge by hand — today every guard holds and the change ships unapproved, so this must refuse, naming the mark
-- [ ] 2.3 Verify the event path still works unchanged, since it stops being the evidence and becomes merely the trigger
+- [ ] 2.1 The approval guard requires that `status:ready-to-release` is **currently** on the ticket, not merely that it once was. Today it reads the timeline alone, so the label being removed changes nothing
+- [ ] 2.2 And that the label event is **newer than the head commit**. That is what closes the known sequence: after a push, the newest approval event is older than the head. **Verify by constructing the failure** — approve, push a commit, let automation drop the label, let revalidation write its mark on the new head, then attempt the merge by hand. Today every guard holds and an unapproved commit ships
+- [ ] 2.3 Verify the event path still works unchanged, since the event stops being the evidence and becomes only the trigger
+- [ ] 2.4 Record the race this leaves: approve and push inside the same second. The commit-scoped mark closes it and is a later change if it ever stops being theoretical
 
 ## 3. The ticket, derived and unambiguous
 
