@@ -20,3 +20,12 @@ describe('readinessFrom', () => {
     expect(readinessFrom(0, 0)).toEqual({ ready: true });
   });
 });
+
+describe('a database that has never been migrated', () => {
+  it('is behind, not unreachable', () => {
+    // The distinction is the remedy: one says run the migrations, the other
+    // says look at the network. A probe against a fresh database reported
+    // unreachable and meant nothing of the kind.
+    expect(readinessFrom(0, 2)).toEqual({ ready: false, reason: 'migrations-behind' });
+  });
+});

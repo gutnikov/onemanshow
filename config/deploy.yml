@@ -59,6 +59,11 @@ env:
     # Quoted: an empty ERB result is nil in YAML, and the deploy tool requires
     # a string here.
     SHIP_BREAK_GREETING: "<%= ENV.fetch('SHIP_BREAK_GREETING', '') %>"
+    # The host this environment answers on. Identity needs it: left unset, the
+    # origin is taken from the incoming request, so callbacks and redirects
+    # depend on whichever host a caller used - and the two environments differ
+    # in exactly that. Overridden for staging.
+    SHIP_PUBLIC_HOST: <%= ENV.fetch("SHIP_DOMAIN") %>
   secret:
     - DATABASE_URL
     - SENTRY_DSN

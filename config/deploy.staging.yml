@@ -7,6 +7,13 @@ service: onemanshow-staging
 proxy:
   host: <%= ENV.fetch("SHIP_STAGING_DOMAIN") %>
 
+# The stand answers on its own host name, and identity has to know which one:
+# an origin inherited from the request would make a redirect on the stand send
+# somebody to production.
+env:
+  clear:
+    SHIP_PUBLIC_HOST: <%= ENV.fetch("SHIP_STAGING_DOMAIN") %>
+
 # Hard limits on staging only. Production is left unconstrained: on a shared
 # machine the point is that validation cannot starve what users are using.
 servers:

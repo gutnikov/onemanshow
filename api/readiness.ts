@@ -9,6 +9,27 @@ export type Readiness =
   | { ready: false; reason: 'database-unreachable' | 'migrations-behind' | 'schema-ahead' };
 
 /**
+ * Postgres reports a missing table as 42P01. A database that has never been
+ * migrated has no migrations table, and reading that as "unreachable" sends
+ * somebody to look at networking and credentials when the answer is "run the
+ * migrations" - which is what this did until a probe against a fresh database
+ * said `database-unreachable` and meant nothing of the kind.
+ */
+const UNDEFINED_TABLE = '42P01';
+
+/**
+ * The code is looked for in two places on purpose. The ORM wraps query errors,
+ * so the driver's code moved from the error itself to its `cause` between
+ * versions - and the code that would have noticed was a bare `catch` that threw
+ * every failure into one bucket. Checking both survives the wrapping either way.
+ */
+function appliedFromError(error: unknown): number | undefined {
+  const own = (error as { code?: unknown } | null)?.code;
+  const caused = (error as { cause?: { code?: unknown } } | null)?.cause?.code;
+  return own === UNDEFINED_TABLE || caused === UNDEFINED_TABLE ? 0 : undefined;
+}
+
+/**
  * Drift is compared in both directions, and the second one is the reason this is
  * a separate pure function.
  *
@@ -43,8 +64,11 @@ export async function checkReadiness({ db }: Connection): Promise<Readiness> {
       raw`select count(*)::text as count from drizzle.__drizzle_migrations`,
     );
     applied = Number(rows[0]?.count ?? '0');
-  } catch {
-    return { ready: false, reason: 'database-unreachable' };
+  } catch (error) {
+    const none = appliedFromError(error);
+    if (none === undefined) return { ready: false, reason: 'database-unreachable' };
+    // Reachable, and nothing has been applied to it.
+    applied = none;
   }
 
   return readinessFrom(applied, await expectedMigrations());

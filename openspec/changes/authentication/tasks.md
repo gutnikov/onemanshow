@@ -2,8 +2,10 @@
 
 ## 1. Schema before anything uses it
 
-- [ ] 1.1 Add the account, session and organisation tables to the schema and generate the migration during development. Verify `ship/check` passes, which now compares the journal against the files — and verify by reading the generated SQL that it creates what was intended rather than trusting the generator
-- [ ] 1.2 Turn off any ability the library has to create its own schema at run time. Verify by starting the application against a database with the migration **not** applied: it must fail readiness rather than quietly creating tables, because a table nothing declared is a table nothing can roll back
+- [x] 1.1 Add the account, session and organisation tables to the schema and generate the migration during development. Verify `ship/check` passes, which now compares the journal against the files — and verify by reading the generated SQL that it creates what was intended rather than trusting the generator
+- [x] 1.2 Turn off any ability the library has to create its own schema at run time. Verify by starting the application against a database with the migration **not** applied: it must fail readiness rather than quietly creating tables, because a table nothing declared is a table nothing can roll back
+
+- [x] 1.3 **Not planned, and found by doing 1.1.** The library requires `drizzle-kit >= 0.31.4` and `drizzle-orm >= 0.45.2`; the project had 0.30.6 and 0.38.4. So adding identity meant upgrading the data-access layer by seven minor versions — a change to every query in the application rather than a change to authentication. Verified that the new generator agrees with the existing migration history (no spurious migration, journal version unchanged), that `ship/check` passes, and against a real database that the readiness query still works. The bundle went from 374KB to 2.2MB, which is the cost and belongs written down
 
 ## 2. Signing in works
 
