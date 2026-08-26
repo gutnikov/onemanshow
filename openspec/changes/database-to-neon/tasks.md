@@ -7,10 +7,10 @@
 
 ## 2. Staging moves first, because it is disposable
 
-- [ ] 2.1 Create a branch for each validation and delete it afterwards. Verify by running two validations back to back and confirming the second saw no residue from the first — and that the branch count returns to its baseline
-- [ ] 2.2 **Delete `reset-staging`.** Verify no workflow references it and that the validation still prepares a clean database. The action is the defect this change exists to remove; adapting it would keep the thing that reported destroying a volume nobody was using
-- [ ] 2.3 Remove the SSH tunnel from the staging migration path, along with `DATABASE_URL_TUNNEL`. Verify by grep that neither the workflow nor any secret still names a forwarded port — the drift between those two copies was a real defect
-- [ ] 2.4 Sweep abandoned branches in the scheduled workflow that closes windows, reporting what it swept and what it left. Verify by leaving a branch behind on purpose and watching the next run remove it. Without this the branch limit is reached by accident and validation stops for a reason nobody can see
+- [x] 2.1 A branch per **change**, not per validation, created or reused and emptied by restoring it to the parent. Verified by two validations of the same change back to back: the second reused the branch, emptied it, and reported `verified empty: 0 tables` both times. **The first attempt deleted the branch when the validation ended, and that was wrong**: the application stayed deployed against a database that no longer existed, so the stand answered `database-unreachable` the moment the run went green — and the stand is what the next step asks a person to inspect. Found by opening it, not by any check. Originally: create a branch for each validation and delete it afterwards
+- [x] 2.2 **Delete `reset-staging`.** Verify no workflow references it and that the validation still prepares a clean database. The action is the defect this change exists to remove; adapting it would keep the thing that reported destroying a volume nobody was using
+- [x] 2.3 Remove the SSH tunnel from the staging migration path, along with `DATABASE_URL_TUNNEL`. Verify by grep that neither the workflow nor any secret still names a forwarded port — the drift between those two copies was a real defect
+- [x] 2.4 Sweep abandoned branches in the scheduled workflow that closes windows, reporting what it swept and what it left. Verify by leaving a branch behind on purpose and watching the next run remove it. Without this the branch limit is reached by accident and validation stops for a reason nobody can see
 
 ## 3. The endpoints come apart
 
