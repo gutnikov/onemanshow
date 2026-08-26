@@ -47,12 +47,15 @@ jobs:
           old="$(sops -d --extract '["DATABASE_URL_TUNNEL"]' secrets/prod.yaml)"
           echo "::add-mask::$old"
           echo "OLD_URL=$old" >> "$GITHUB_ENV"
-          key="$(sops -d --extract '["NEON_API_KEY"]' secrets/ci.yaml)"
-          echo "::add-mask::$key"
-          proj="$(python3 -c "import yaml;print(yaml.safe_load(open('ship.yml'))['roles']['database']['production_project'])")"
-          new="$(curl -sS --max-time 25 -H "Authorization: Bearer $key" \
-                   "https://console.neon.tech/api/v2/projects/${proj}/connection_uri?database_name=neondb&role_name=neondb_owner&pooled=false" \
-                 | python3 -c 'import json,sys; print(json.load(sys.stdin)["uri"])')"
+          # The destination is read from a secret the operator sets before
+          # running this, not fetched with a provider key. Fetching it would
+          # require a key that can see the production project, and the key this
+          # pipeline holds permanently is deliberately scoped to staging - so a
+          # one-off would have forced a permanent widening.
+          if ! new="$(sops -d --extract '["DATABASE_URL_NEW"]' secrets/prod.yaml 2>/dev/null)"; then
+            echo "::error::set DATABASE_URL_NEW in secrets/prod.yaml to the managed database's connection string before running this. It is deliberately not fetched with a provider key: doing so would need a key able to see production, and the permanent one is scoped to staging."
+            exit 1
+          fi
           echo "::add-mask::$new"
           echo "NEW_URL=$new" >> "$GITHUB_ENV"
 
