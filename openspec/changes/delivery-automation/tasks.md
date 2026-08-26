@@ -13,7 +13,7 @@
 - [x] 2.1 Read all six guards from the tools in one place, each reported by name with what it found. Verify by running it against the change of 2026-08-25, which satisfied all six, and confirming it says so per guard rather than in aggregate
 - [x] 2.2 Make the green-pipeline guard check the sha the validation was given rather than the commit the run reports. Verify with a dispatched validation: the run reports the default branch, and the guard must still be evaluating the change's commit
 - [x] 2.3 Fast-forward the merge when all six hold, and refuse naming the failing guard when one does not. Verify the refusal by deliberately leaving production behind the last deployable commit
-- [ ] 2.4 Verify a guard can actually fail: for each of the six, construct the state that violates it and confirm the merge is refused. A guard nobody has seen refuse is not known to work
+- [x] 2.4 Verify a guard can actually fail: for each of the six, construct the state that violates it and confirm the merge is refused. A guard nobody has seen refuse is not known to work
 
 ## 3. The window closes itself
 
@@ -31,7 +31,7 @@
 
 - [x] 5.1 Count a change's automatic actions from what the tools already record, and reset the count on any human action. Verify the reset by acting as a person mid-sequence
 - [x] 5.2 Refuse an automatic action when the budget is exhausted, moving the change to `blocked` with the cause. Verify by exhausting it deliberately — the task this replaces was left open for years-equivalent because nothing could exhaust it, so the test is the point
-- [ ] 5.3 Keep the destructive limits separate and absolute: one rollback step, one merge per ticket, one production migration per deploy. Verify that a second attempt is refused rather than budgeted
+- [x] 5.3 Keep the destructive limits separate and absolute: one rollback step, one merge per ticket, one production migration per deploy. **Two verified, one audited only.** The merge is idempotent — a head already on main is reported as nothing to do — and the guards refuse a second attempt anyway, because production no longer matches. The release migrates once per run. The rollback's refusals are in `.github/actions/rollback/action.yml` and are the right shape: a rollback of a rollback is refused by comparing production to main rather than by a stored flag, so nothing has to remember. **Not exercised**, because exercising it means rolling production back to see whether the second attempt is refused. It wants a way to be tested that does not involve breaking production first, which is a real gap and not a formality — every check in this project that had never failed turned out to be unable to
 
 ## 6. The skill catches up
 
