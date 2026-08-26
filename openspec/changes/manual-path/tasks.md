@@ -1,23 +1,47 @@
 # Tasks
 
-## 1. Decide what grill is for
+The examination settled most of what the first draft left open, and moved three
+premises. What remains for the gate is in the proposal's last section.
 
-- [ ] 1.1 Settle whether the derived ticket needs its own refusal when more than one carries the label, or whether trusting exclusivity is sound here — and record which, because a guard that trusts another guard has bitten this project before
-- [ ] 1.2 Settle whether the manual merge path needs to refuse a ticket that was never approved, or whether the existing status guard is enough
-- [ ] 1.3 Settle per stage, not uniformly, which of the six event-reached stages get a manual path
+## 1. The merge must stop releasing what must not be released
 
-## 2. The merge stage
+Forced first: this change cannot land without it, because merging it would
+deploy a wiring-only commit and then block the next merge on guard 4.
 
-- [ ] 2.1 `merge.yml` derives the ticket, preferring the event's value when it exists, and accepts a manual run. Verify by running it by hand on a change in `ready-to-release` and watching the same six guards report
-- [ ] 2.2 Verify the guards still refuse what they refused: run it by hand on a ticket that is not in `ready-to-release` and confirm it stops
+- [ ] 1.1 `merge-change` dispatches the release only when the merged commit touches a deployable path, reading the exclusion list guard 4 already reads rather than keeping a second copy. Verify by merging a wiring-only commit and watching it say it is not releasing, and by confirming production still reports the previous commit
+- [ ] 1.2 Verify the other direction, which is the one that matters: a commit that *does* touch a deployable path still releases. A guard that only ever refuses is indistinguishable from a broken one
 
-## 3. The other stages
+## 2. Approval that names a commit
 
-- [ ] 3.1 Enumerate the event-reached stages and give a manual path to the ones argued for in 1.3, in the instance and in the stub templates both
-- [ ] 3.2 Exercise each one by hand once. A path that has never been walked is not known to exist
+- [ ] 2.1 Approval leaves a mark on the head it approved, written when a person applies the label, in the shape the validation mark already uses. Verify the mark exists on the right commit and nowhere else
+- [ ] 2.2 A guard reads it and refuses a head it does not match. **Verify by constructing the failure**: approve, push a commit, let the label drop and revalidation write its own mark on the new head, then attempt the merge by hand — today every guard holds and the change ships unapproved, so this must refuse, naming the mark
+- [ ] 2.3 Verify the event path still works unchanged, since it stops being the evidence and becomes merely the trigger
 
-## 4. What this closes for the other change
+## 3. The ticket, derived and unambiguous
 
-- [ ] 4.1 `smoke-signs-in` 3.2: dispatch a release with a knowingly wrong credential; confirm the pre-deploy probe stops it, that nothing was migrated, deployed or rolled back, and that the ticket is told production is untouched **because that is what happened**
-- [ ] 4.2 Put the credential back and confirm the next release passes both probes
-- [ ] 4.3 Record what the pipeline does to a closed ticket when a release is dispatched outside a change's lifecycle, and clean up whatever it labelled
+- [ ] 3.1 The merge derives its ticket, preferring the event's value when present. One in `ready-to-release` proceeds
+- [ ] 3.2 Two stop, with both numbers named. Verify by putting the label on a second ticket — the hotfix requirement makes this a real state, not a hypothetical
+- [ ] 3.3 None stops, saying so. Verify
+
+## 4. Manual paths, where argued
+
+- [ ] 4.1 `on-ready-to-release` and `template-ci` gain `workflow_dispatch`, in the instance and in the stub templates both
+- [ ] 4.2 Exercise each by hand once, and judge it by the lines the stage prints, never by the run being green — a skipped job is green, which is exactly how this stage would have lied if the trigger had been added alone
+- [ ] 4.3 `on-pr-closed` and `on-liveness` do not get one, and the reasons are written where a reader will find them: abandoning closes a ticket, which only a person may do, and the closing of the pull request is the decision that makes automation's closure legitimate; liveness records an observation from outside, and typing one by hand is fabricating evidence rather than operating the pipeline
+- [ ] 4.4 Note the trap found while arguing 4.3: `abandon.yml` gates on `github.event.pull_request.merged == false`, and under a dispatch that field is absent, which the expression treats as false — so the guard passes and the run dies later with an empty branch. Loud, but for the wrong reason
+
+## 5. Telling a person a change is stuck
+
+- [ ] 5.1 The window check gains one listing: a ticket has held `ready-to-release` longer than the window with no merge run since the label event. It reports and does not act
+- [ ] 5.2 Verify it fires, by leaving a ticket in that state on purpose. Verify it stays quiet otherwise, which is the half that is easy to skip
+
+## 6. Parity that something enforces
+
+- [ ] 6.1 `check-instance-stubs.py` compares triggers, not only `with:` keys and the `uses:` target. Verify against the drift that already exists — the instance's `on-pr` carries a dispatch trigger and the stub template it came from does not — and fix that drift
+- [ ] 6.2 A stage deliberately without a manual path is named in an exception list in the checker, so the spec's "the reason is written down" is asserted rather than hoped for
+
+## 7. The rehearsal, deliberately and before this merges
+
+- [ ] 7.1 `smoke-signs-in` 3.2: with a knowingly wrong credential in `secrets/ci.yaml`, dispatch a release against today's head and confirm the pre-deploy probe stops it — nothing migrated, nothing deployed, nothing rolled back, and the ticket told production is untouched **because that is what happened**
+- [ ] 7.2 Restore the credential and confirm a release passes both probes again
+- [ ] 7.3 Record the price honestly: two reconfigure deploys of an unchanged version, and a `blocked:rollback` label on a closed ticket, removed afterwards with the thread told it was staged
