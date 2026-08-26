@@ -27,10 +27,10 @@
 
 ## 5. Recovery covers both losses
 
-- [ ] 5.1 Dump from the managed database in the scheduled pipeline, encrypt to the project's age recipients, and place it on the machine outside anything the application can read. Verify the file is encrypted **by content**, and verify the application cannot read the path — the first was claimed once and was false
-- [ ] 5.2 Enforce a retention limit when writing, not by a separate cleanup. Verify by filling the limit and watching the oldest go: a backup that fills the disk causes the outage it exists to survive, and on this machine that is not theoretical
-- [ ] 5.3 Report on every backup run, including runs with nothing to say. Verify by disabling the schedule and confirming the absence is noticeable
-- [ ] 5.4 Write down what the provider's recovery window actually is on the current plan, next to the retention of the dump. Verify the two numbers appear together, because each is meaningless about the other
+- [x] 5.1 Dump from the managed database in the scheduled pipeline, encrypt to the project's age recipients, and place it on the machine outside anything the application can read. Verify the file is encrypted **by content**, and verify the application cannot read the path — the first was claimed once and was false
+- [x] 5.2 Enforce a retention limit when writing, not by a separate cleanup. Verify by filling the limit and watching the oldest go: a backup that fills the disk causes the outage it exists to survive, and on this machine that is not theoretical
+- [x] 5.3 Report on every backup run, including runs with nothing to say. Verify by disabling the schedule and confirming the absence is noticeable
+- [x] 5.4 Write down what the provider's recovery window actually is on the current plan, next to the retention of the dump. **Six hours**, read from the provider's API rather than remembered — a day was the natural guess and is wrong by a factor of four. Recorded beside the dump retention in `ship.yml`, with what each covers: a bad statement noticed inside six hours is recoverable precisely, the same mistake noticed next morning is a daily dump and up to a day of lost writes
 
 ## 6. Verification
 
