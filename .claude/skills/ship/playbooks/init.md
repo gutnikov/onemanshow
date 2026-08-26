@@ -58,14 +58,21 @@ directory. Say that you did.
 Two groups. The first reaches a real deployment; the second makes it correct.
 
 ```
-1. secrets      →  2. registry  →  3. the machine  →  4. the pipeline
+1. secrets  →  2. database  →  3. registry  →  4. the machine  →  5. the pipeline
    ══ a real production deploy is possible here ══
-5. domain    6. staging data    7. observability    8. automation
+6. domain    7. observability    8. automation
 ```
+
+The database is in the first group and not the second, and it is the only role
+there by necessity rather than by ordering: the others are early because a
+deployment needs them, while this one has no degraded form at all. Without it
+the application does not start and readiness cannot pass, so there is no
+reduced version of any later stage to run.
 
 The split is possible because absent roles degrade rather than block — without a
 domain the environments use names derived from the machine's address, without
-observability the window is a timer that says so. `reference/roles.md` has the
+observability the window consults what exists and names what it could not.
+The database is the exception and is placed accordingly. `reference/roles.md` has the
 full list of what each absence costs.
 
 Put the reward early. Eight tasks before anything works is how a person gives up
