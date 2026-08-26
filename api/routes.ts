@@ -45,15 +45,17 @@ export function createRoutes(connection: ReturnType<typeof connect>) {
       c.json({ alive: true as const, release: releaseFromVersion(process.env['KAMAL_VERSION']) }, 200),
     )
     .get('/health', async (c) => {
-      // The commit is reported alongside readiness rather than on an endpoint
-      // of its own. Anyone who wants to know what is running also wants to
-      // know whether it is alive, and two endpoints could disagree.
+      // The commit appears here as well as on liveness, so a caller holding
+      // this response does not need a second request to learn what answered.
+      // It is read from liveness by everything that asks what production is
+      // running, because that question matters most when production is not
+      // ready - and this endpoint is the one that says so.
       //
-      // It is what makes the guard "production and main agree" enforceable. A
-      // deploy log records what was intended; a rollback is exactly when
-      // intent and reality differ, and that is when the question gets asked.
-      // Absent rather than invented when nothing supplied it, so a caller can
-      // tell "never deployed" from "deployed something else".
+      // The earlier reasoning here was that one endpoint cannot disagree with
+      // itself. That was true and is no longer the arrangement: there are two,
+      // and they are allowed to disagree, because "the process is serving" and
+      // "it can serve requests" are different questions and the gap between
+      // them is the up-but-broken state a single check cannot describe.
       const release = releaseFromVersion(process.env['KAMAL_VERSION']);
       const readiness = await checkReadiness(connection);
       return readiness.ready
