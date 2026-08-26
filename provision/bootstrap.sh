@@ -47,6 +47,14 @@ say "firewall"
 # keeps this from ending the session that is running it.
 #
 # Note what this does NOT protect. Docker writes its own iptables rules, and a
+# Where the encrypted dumps live. Root-owned and unreadable by anything else:
+# the application's container does not mount this path, so a flaw in the
+# application yields the current state of the database and not its history.
+mkdir -p /var/backups/onemanshow
+chmod 700 /var/backups/onemanshow
+chown root:root /var/backups/onemanshow
+echo "backup directory: $(stat -c '%A %U:%G %n' /var/backups/onemanshow)"
+
 # published container port bypasses ufw entirely - a database published with
 # -p 5432:5432 is reachable from the internet with the firewall showing "deny
 # incoming". Container ports that are not meant to be public must therefore be

@@ -14,6 +14,20 @@ name: backup
 on:
   workflow_call:
     inputs:
+      keep:
+        description: >
+          How many encrypted dumps to keep on the machine. Enforced before
+          writing, not after: a moment where the limit is exceeded is a moment
+          where a small disk can fill, and a backup that fills a disk causes the
+          outage it exists to survive.
+        required: false
+        type: number
+        default: 14
+      host:
+        description: The machine the dumps are kept on. Not where the database is.
+        required: true
+        type: string
+      host_key: { required: false, type: string, default: "" }
       known_row_query:
         description: SQL returning one known value from a restored dump, used to prove the restore worked
         required: false
@@ -21,6 +35,7 @@ on:
         default: "select count(*)::text from greeting"
     secrets:
       SOPS_AGE_KEY: { required: true }
+      SSH_PRIVATE_KEY: { required: true }
 
 jobs:
   dump:
@@ -118,17 +133,72 @@ jobs:
             exit 1
           fi
 
-      - name: keep it
+      # ssh comes back here, for a different reason than it left. It is not how
+      # the database is reached any more - that is a network address - it is how
+      # the storage is reached.
+      - uses: gutnikov/onemanshow/.github/actions/ssh-agentless@main
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ inputs.host }}
+          host_key: ${{ inputs.host_key }}
+
+      # The machine, which after the database moved has nothing to do with it.
+      # So a dump here survives losing the code host and losing the database
+      # provider - the two losses that matter. It does not survive losing this
+      # machine, and destroying the data then needs two unrelated providers to
+      # fail at once, against a host that is the cheap thing to rebuild.
+      #
+      # Pruned before writing. Doing it afterwards leaves a moment where the
+      # limit is exceeded, and on a small disk that moment is the outage.
+      - name: keep it on the machine, and only the last few
+        env:
+          KEEP: ${{ inputs.keep }}
+          HOST: ${{ inputs.host }}
+        run: |
+          set -eu
+          dir=/var/backups/onemanshow
+          ssh "root@$HOST" "mkdir -p $dir && chmod 700 $dir"
+          # Prune to KEEP-1 so that this run's file lands inside the limit.
+          ssh "root@$HOST" "ls -1t ${dir}/*.sql.age 2>/dev/null | tail -n +${KEEP} | xargs -r rm -f --" || true
+          name="$(date -u +%Y%m%dT%H%M%SZ)-${GITHUB_SHA:-manual}.sql.age"
+          scp -q /tmp/backup.sql.age "root@$HOST:${dir}/${name}"
+
+          # Checked on the machine, by content. A step that reports success is
+          # not evidence it produced anything, and this project has already
+          # produced a dump it wrongly believed was encrypted.
+          head="$(ssh "root@$HOST" "head -c 22 ${dir}/${name}")"
+          case "$head" in
+            "age-encryption.org"*) echo "arrived encrypted: ${name}" ;;
+            *) echo "::error::the file on the machine does not begin like an age file; refusing to call this a backup"; exit 1 ;;
+          esac
+          size="$(ssh "root@$HOST" "wc -c < ${dir}/${name}" | tr -d '[:space:]')"
+          [ "$size" -gt 500 ] || { echo "::error::the file on the machine is ${size} bytes"; exit 1; }
+
+          # Said on every run, including the quiet ones. A backup that has
+          # silently stopped is indistinguishable from one that is working.
+          echo "kept ${size} bytes; the machine now holds:"
+          ssh "root@$HOST" "ls -1t ${dir} | head -n 20 | sed 's/^/  /'"
+          held="$(ssh "root@$HOST" "ls -1 ${dir}/*.sql.age 2>/dev/null | wc -l" | tr -d '[:space:]')"
+          echo "${held} dump(s) held, limit ${KEEP}"
+          [ "$held" -le "$KEEP" ] || { echo "::error::${held} dumps exceed the limit of ${KEEP}"; exit 1; }
+          ssh "root@$HOST" "df -h ${dir} | tail -1 | sed 's/^/  disk: /'"
+
+      # Kept for convenience, and labelled so nobody mistakes it for the backup.
+      - name: a copy for reading, which is not the backup
         uses: actions/upload-artifact@v4
         with:
           name: backup-${{ github.run_id }}
           path: /tmp/backup.sql.age
-          retention-days: 30
+          retention-days: 7
 
-      # Encryption fixes the exposure, not the location. A backup in the same
-      # account as the repository and the deploy keys is lost with that account.
-      - name: say what this is not yet
+      - name: which loss each mechanism covers
         run: |
-          echo "::warning::This backup is encrypted but still lives in the same" \
-               "account as the repository and the deploy keys. Put it in object" \
-               "storage elsewhere before the data is worth anything."
+          echo "The dump on the machine survives losing this code host and"
+          echo "losing the database provider. It does not survive losing the"
+          echo "machine's provider."
+          echo "The provider's point-in-time recovery covers the wrong statement"
+          echo "having run, at whatever retention the plan gives - check it and"
+          echo "write it down next to this limit, because neither number means"
+          echo "anything about the other."
+          echo "The artifact above is a convenience for reading a dump. It lives"
+          echo "in this account and is not the backup."

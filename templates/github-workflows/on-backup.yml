@@ -1,9 +1,9 @@
-# Instance wiring: no placeholders. See this directory's README.
+# Instance wiring: replace every REPLACE_ME. See this directory's README.
 #
-# The dump lands in an artifact in the same account as the repository and the
-# deploy credentials, which is the one loss it cannot survive. Moving the
-# destination to the machine - which no longer has anything to do with the
-# database - is what makes it cover losing this account.
+# The dumps are kept on the machine, which after the database moved has nothing
+# to do with it - so they survive losing this code host and losing the database
+# provider. They do not survive losing the machine's provider, and that is the
+# residual loss, named rather than left to be assumed covered.
 name: backup
 on:
   schedule:
@@ -12,4 +12,11 @@ on:
 jobs:
   backup:
     uses: gutnikov/onemanshow/.github/workflows/backup.yml@main
+    with:
+      host: REPLACE_ME_SERVER_IP
+      # Two weeks of daily dumps. The limit is enforced before writing, so the
+      # disk never holds more than this even for a moment.
+      keep: 14
+      host_key: |
+        REPLACE_ME_KNOWN_HOSTS_LINES
     secrets: inherit
