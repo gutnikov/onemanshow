@@ -56,13 +56,17 @@ jobs:
           echo "::add-mask::$new"
           echo "NEW_URL=$new" >> "$GITHUB_ENV"
 
-      # The destination must be empty. Copying into a database that already has
-      # data is how two half-populated databases happen, and neither is then the
-      # one to trust.
+      # Every client runs in a container, at a version at least as new as both
+      # servers. The runner's own pg_dump is older than the database on the
+      # machine and refuses to dump it - "aborting because of server version
+      # mismatch". backup.yml already knew this and did it in a container; this
+      # workflow was written beside it without reusing the lesson.
       - name: the destination must be empty
         run: |
           set -eu
-          n="$(psql "$NEW_URL" -tAc "select count(*) from information_schema.tables where table_schema='public'" | tr -d '[:space:]')"
+          n="$(docker run --rm --network host -e U="$NEW_URL" postgres:18-alpine \
+                 sh -c 'psql "$U" -tAc "select count(*) from information_schema.tables where table_schema='"'"'public'"'"'"' \
+               | tr -d '[:space:]')"
           [ "$n" = 0 ] || { echo "::error::the managed database already holds ${n} table(s); refusing to copy into it"; exit 1; }
           echo "destination is empty"
 
@@ -70,9 +74,12 @@ jobs:
         run: |
           set -eu
           ssh -f -N -L 5432:localhost:5432 "root@${{ inputs.host }}"
-          pg_dump --no-owner --no-privileges --clean --if-exists "$OLD_URL" > /tmp/move.sql
+          docker run --rm --network host -e U="$OLD_URL" postgres:18-alpine \
+            sh -c 'pg_dump --no-owner --no-privileges --clean --if-exists "$U"' > /tmp/move.sql
           echo "dumped $(wc -c < /tmp/move.sql) bytes"
-          psql "$NEW_URL" -v ON_ERROR_STOP=1 -q -f /tmp/move.sql
+          [ -s /tmp/move.sql ] || { echo "::error::the dump is empty"; exit 1; }
+          docker run --rm --network host -i -e U="$NEW_URL" postgres:18-alpine \
+            sh -c 'psql "$U" -v ON_ERROR_STOP=1 -q -f -' < /tmp/move.sql
           echo "restored"
 
       # Read back a value that had to survive. A copy that reports success and
@@ -80,8 +87,12 @@ jobs:
       - name: read back what had to survive
         run: |
           set -eu
-          before="$(psql "$OLD_URL" -tAc "${{ inputs.known_row_query }}" | sed 's/^ *//;s/ *$//')"
-          after="$(psql "$NEW_URL" -tAc "${{ inputs.known_row_query }}" | sed 's/^ *//;s/ *$//')"
+          ask() {
+            docker run --rm --network host -e U="$1" -e Q="${{ inputs.known_row_query }}" \
+              postgres:18-alpine sh -c 'psql "$U" -tAc "$Q"' | sed 's/^ *//;s/ *$//'
+          }
+          before="$(ask "$OLD_URL")"
+          after="$(ask "$NEW_URL")"
           echo "old: '${before}'"
           echo "new: '${after}'"
           [ -n "$after" ] || { echo "::error::the destination returned nothing for the known row"; exit 1; }
