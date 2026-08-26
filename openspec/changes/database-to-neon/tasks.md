@@ -2,8 +2,8 @@
 
 ## 1. The databases exist before anything uses them
 
-- [ ] 1.1 Create the production and staging databases with the provider and record the connection strings in `secrets/prod.yaml` and `secrets/staging.yaml`. Verify by decrypting and connecting from a workflow that does nothing else — a credential that is present and wrong is the state this project has already been bitten by
-- [ ] 1.2 Record the database as a role in `ship.yml`, with the provider named. Verify `reference/roles.md` says what its absence costs, which is everything: there is no degraded mode
+- [x] 1.1 Create the production and staging databases with the provider. **The connection strings are not stored** — the provider can be asked for them with the API key, so a second copy is not created, and it must be asked with `pooled=false` because the default answer is the pooler that a long-lived container does not want. Production's string will enter `secrets/prod.yaml` at task 4.2, when production actually moves, so `DATABASE_URL` has one meaning at every moment. Verified in CI: the key sees exactly the two projects, the provider returns a direct string, and a real connection is opened. Originally: record the connection strings in both secret files
+- [x] 1.2 Record the database as a role in `ship.yml`, with the provider named. Verify `reference/roles.md` says what its absence costs, which is everything: there is no degraded mode
 
 ## 2. Staging moves first, because it is disposable
 
@@ -34,6 +34,6 @@
 
 ## 6. Verification
 
-- [ ] 6.1 Measure how long a sleeping database takes to answer, and whether smoke's timeouts survive it. Verify by letting staging sleep and then running smoke. A cold start read as a failed deploy would trigger the rollback decision, which makes this the most expensive flake available
+- [ ] 6.1 Measure how long a sleeping database takes to answer, and whether smoke's timeouts survive it. **First numbers, taken 2026-08-26:** from a laptop, a cold connect took 2481ms and steady queries 44ms; from a runner, connect-and-query took 961ms and the second query 94ms. So waking costs roughly one to two and a half seconds. Liveness is unaffected because it will not touch the database. Smoke pays it once on its first request after a deploy, which is inside ordinary HTTP patience — so the risk looks real but modest, and the number to watch is whether it grows once there is data. Still open until measured against staging after it moves. Originally: Verify by letting staging sleep and then running smoke. A cold start read as a failed deploy would trigger the rollback decision, which makes this the most expensive flake available
 - [ ] 6.2 Drive an ordinary change end to end afterwards — queue to closed, a person doing only the two gates. **This is the test of the whole change.** Anything less specific is not evidence that the move broke nothing
 - [ ] 6.3 Confirm the weaker guarantee is gone rather than assumed: verify staging cannot name production's database, and that the spec no longer claims separation-of-storage-without-separation-of-reach for a project on a managed provider

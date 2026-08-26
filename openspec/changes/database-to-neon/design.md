@@ -57,5 +57,5 @@ Rolling back means pointing the connection strings at the old accessories, which
 
 ## Open Questions
 
-- The cold-start numbers: how long a sleeping database takes to answer, and whether smoke's timeouts need changing. Measurable once staging is moved, and not worth guessing before.
+- The cold-start numbers, partly answered before the move. Waking costs about one to two and a half seconds; steady queries cost 44ms from a laptop and 94ms from a runner, against roughly 1ms when the database was on localhost. The wake does not threaten smoke, which pays it once. What did change and was not anticipated: **every query now crosses a network.** The reference application makes one query per page and does not care, but an application making twenty per request has just had that cost multiplied by an order of magnitude, and the pattern that used to be merely untidy is now expensive. Worth stating in the template rather than discovered by whoever writes the twentieth query.
 - Whether the machine can be smaller afterwards. A separate decision, taken on evidence rather than in advance.
