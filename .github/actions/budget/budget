@@ -1,0 +1,68 @@
+#!/bin/sh
+# The budget of unattended repetition, counted and refused by the actor that
+# repeats.
+#
+# The count is derived, like every other piece of state here: automation's own
+# events on the ticket since the most recent event authored by a person. That
+# definition is the whole design. A loop is unattended repetition, so a person
+# acting anywhere on the change refills the budget by moving the line the count
+# starts from - nothing has to be reset, because nothing was stored.
+#
+# It counts automatic ACTIONS, not agent invocations. Stated as a bound on
+# invocations it was vacuous wherever nothing invokes the agent: zero of
+# something absent can never be exceeded, so the rule read as satisfied while
+# unattended repetition happened beside it.
+set -eu
+
+TICKET="${1:?usage: budget <ticket>}"
+LIMIT="${BUDGET:?}"
+REPO="${GITHUB_REPOSITORY:?}"
+
+# Timeline and comments together: a label moved and a note written are both
+# actions, and counting only one kind would miss half of any loop.
+counted="$(gh api "repos/${REPO}/issues/${TICKET}/timeline" --paginate \
+            -q '[.[] | {at: (.created_at // .submitted_at), who: (.actor.login // .user.login // "")}] | .[] | "\(.at)\t\(.who)"' \
+            2>/dev/null | sort | python3 -c '
+import sys
+
+BOTS = ("[bot]", "-bot")
+auto = 0
+for line in sys.stdin:
+    at, _, who = line.rstrip("\n").partition("\t")
+    if not who:
+        continue
+    if who.endswith(BOTS):
+        auto += 1
+    else:
+        # A person acted: everything before this is attended, so the count
+        # starts again from here.
+        auto = 0
+print(auto)')"
+
+echo "automatic actions since a person last acted on #${TICKET}: ${counted} of ${LIMIT}"
+
+if [ "$counted" -lt "$LIMIT" ]; then
+  echo "remaining=$(( LIMIT - counted ))" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+  exit 0
+fi
+
+# Not swallowed. The first version wrote "|| true" here, the label did not
+# exist in the repository, and the add failed silently - so the ceiling was
+# announced in a comment while the ticket showed nothing blocked, and the
+# guard that refuses a merge during an incident reads labels.
+if ! gh issue edit "$TICKET" --add-label blocked:budget; then
+  echo "::error::could not apply blocked:budget to #${TICKET} - the label must exist in this repository"
+  exit 1
+fi
+gh issue comment "$TICKET" --body "$(printf '%s' "\
+## Automatic actions exhausted — stopping
+
+${counted} automatic actions have happened on this change since anyone last acted on it, and the limit is ${LIMIT}.
+
+This is not a diagnosis. It is a ceiling, and it exists because the loops worth fearing are the ones nobody anticipated: an agent that has gone wrong is exactly the one that cannot be trusted to count its own repetitions, so the count lives here, in what does the repeating.
+
+Anything you do on this ticket refills it — the count runs from the most recent thing a person did, so acting *is* the reset. Nothing was stored, so nothing has to be cleared.
+
+Worth asking why it repeated ${LIMIT} times before spending another ${LIMIT}.")"
+echo "::error::budget of ${LIMIT} automatic actions exhausted on #${TICKET}"
+exit 1

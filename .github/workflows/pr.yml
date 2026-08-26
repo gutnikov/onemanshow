@@ -110,6 +110,21 @@ jobs:
         with:
           branch: "${{ github.event.pull_request.head.ref }}"
           token: ${{ github.token }}
+      # Read from the project's own file, so the ceiling exists in one place.
+      - id: limits
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import yaml
+          c = yaml.safe_load(open("ship.yml"))
+          print(f"budget={(c.get('limits') or {}).get('automatic_actions_per_change', 20)}")
+          PY
+      # Before the action, not after. A ceiling checked afterwards has already
+      # let the action through, which is the one thing it exists to prevent.
+      - uses: gutnikov/onemanshow/.github/actions/budget@main
+        with:
+          ticket: ${{ steps.ticket.outputs.ticket }}
+          limit: ${{ steps.limits.outputs.budget }}
+          token: ${{ github.token }}
       - uses: gutnikov/onemanshow/.github/actions/promote-to-staging@main
         with:
           ticket: ${{ steps.ticket.outputs.ticket }}

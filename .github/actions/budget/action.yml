@@ -1,0 +1,31 @@
+name: budget
+description: >
+  Refuses an automatic action when unattended repetition has gone on too long.
+  The count is derived - automation's own events on the ticket since the most
+  recent event authored by a person - so a person acting anywhere on the change
+  refills it without anything being reset.
+inputs:
+  ticket:
+    description: Ticket number
+    required: true
+  limit:
+    description: How many automatic actions are allowed since a person last acted
+    required: true
+  token:
+    description: Token able to read timelines and edit issues
+    required: true
+outputs:
+  remaining:
+    description: How many automatic actions are left
+    value: ${{ steps.count.outputs.remaining }}
+runs:
+  using: composite
+  steps:
+    - id: count
+      shell: sh
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        BUDGET: ${{ inputs.limit }}
+        TICKET: ${{ inputs.ticket }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: '"$ACTION_PATH/budget" "$TICKET"'

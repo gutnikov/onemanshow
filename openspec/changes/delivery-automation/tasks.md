@@ -21,7 +21,7 @@
 - [ ] 3.2 Verify the window evaluation can report unhealthy, one source at a time: a failed smoke, an unreported smoke, a new issue in the release, reported downtime, a declared monitor that does not exist, and a monitor that exists while the configuration declares none. Each must give a non-zero exit. Done once by hand on 2026-08-25 and worth keeping as a test rather than a memory
 - [ ] 3.3 Take up the head of the queue when the segment frees, and say so when the queue is empty. Verify with two changes queued: the second must start without anyone asking. Verify the empty case too — silence and a stopped queue must be distinguishable
 - [x] 3.4 Report on every run, including runs that found nothing to do, so a stopped schedule is distinguishable from a quiet one. Verify by disabling the schedule and confirming the absence is noticeable
-- [ ] 3.5 An inbound dispatch endpoint for an external liveness signal, admitting only whitelisted fields. Verify by sending a payload containing free text and confirming none of it reaches the thread
+- [x] 3.5 An inbound dispatch endpoint for an external liveness signal, admitting only whitelisted fields. Verify by sending a payload containing free text and confirming none of it reaches the thread
 
 ## 4. Applying a change that is not an artifact
 
@@ -29,8 +29,8 @@
 
 ## 5. Bounding repetition
 
-- [ ] 5.1 Count a change's automatic actions from what the tools already record, and reset the count on any human action. Verify the reset by acting as a person mid-sequence
-- [ ] 5.2 Refuse an automatic action when the budget is exhausted, moving the change to `blocked` with the cause. Verify by exhausting it deliberately — the task this replaces was left open for years-equivalent because nothing could exhaust it, so the test is the point
+- [x] 5.1 Count a change's automatic actions from what the tools already record, and reset the count on any human action. Verify the reset by acting as a person mid-sequence
+- [x] 5.2 Refuse an automatic action when the budget is exhausted, moving the change to `blocked` with the cause. Verify by exhausting it deliberately — the task this replaces was left open for years-equivalent because nothing could exhaust it, so the test is the point
 - [ ] 5.3 Keep the destructive limits separate and absolute: one rollback step, one merge per ticket, one production migration per deploy. Verify that a second attempt is refused rather than budgeted
 
 ## 6. The skill catches up
