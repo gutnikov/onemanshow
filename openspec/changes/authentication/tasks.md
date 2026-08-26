@@ -44,6 +44,19 @@ still not applied when these tasks were written.
 
 ## 6. Verification
 
-- [ ] 6.1 Drive an ordinary change end to end afterwards — queue to closed, a person doing only the two gates. The test of whether this broke the pipeline
+- [x] 6.1 Drive an ordinary change end to end afterwards — queue to closed, a person doing only the two gates. The test of whether this broke the pipeline. **Done by #24 on 2026-08-26**, draft to closed, and the person decided exactly twice: worth developing, and worth releasing. Authentication did not break the pipeline.
+
+  But recording it as a clean pass would be false. The pipeline needed an operator three times, and none of the three was this change's fault: the code host stopped delivering `pull_request` and `push` events for over an hour, so the validation had to be dispatched by hand; the workflow could not be dispatched by hand until a one-line fallback was added, because it derived the branch from the pull request event while the commit one screen above already fell back; and a `status:ready-to-release` label event produced no run at all, where re-applying the label produced one within a second. What that says about the design is narrower than "it works": every stage the pipeline reaches **by an event** needs a path a person can take when the event does not arrive, and two of the four did not have one
 - [x] 6.2 Confirm the migration behaved on a database that had just moved: the release's own migration step applied it, and readiness passed, which it cannot if applied and expected disagree. **Done by the release of this change on 2026-08-26.** The migration step ran before the deploy and reported `migrations applied`, which is not the evidence — the evidence is that production answers `ready: true` while running `e824677`, whose code expects three migrations, and readiness refuses in both directions. Applied fewer and it would say `migrations-behind`; applied more, `schema-ahead`. A fabricated session cookie is answered 401 rather than 500, which shows the endpoint path works but is *not* proof the table exists: the library could swallow the error and return no session either way
-- [ ] 6.3 Measure what an authenticated request costs against a sleeping database, from outside. The session query is the first thing that will wake it in normal use, and the number belongs next to the others rather than assumed to be the same
+- [x] 6.3 Measure what an authenticated request costs against a sleeping database, from outside. **Measured 2026-08-26**, after seven minutes in which nothing of ours touched the database, with the authenticated request deliberately first:
+
+  | request | cold | warm |
+  |---|---|---|
+  | `/api/me` — reads the session | **1.234s** | 0.222s, 0.215s |
+  | `/health` — readiness | — | 0.193s |
+  | `/api/notes` — scoped read | — | 0.278s |
+  | `/alive` — touches nothing | — | 0.160s |
+
+  So waking costs about **one second**, and the session query is no more expensive to wake on than the greeting was: the same measurement against the page gave 1.14s cold and 0.19s warm. Against a floor of 0.160s for a request that touches no database, the database adds roughly 0.06s warm and 1.07s cold.
+
+  The caveat matters: the provider key that could have shown the compute suspended no longer authenticates, so "it was asleep" is not observed directly. It is inferred from the quiet and from the gap itself — a first request five times slower than the next two **is** the cold start, and nothing else about this endpoint varies that way. The liveness monitor kept hitting `/alive` throughout, which is exactly why that endpoint exists: it does not wake anything
