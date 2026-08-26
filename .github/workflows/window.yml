@@ -3,6 +3,13 @@
 name: window
 on:
   workflow_call:
+    inputs:
+      production_health_url:
+        description: >
+          Production's health endpoint. The window asks production what it is
+          running, because that is the change it is observing.
+        required: true
+        type: string
     secrets:
       SOPS_AGE_KEY: { required: true }
 jobs:
@@ -52,4 +59,5 @@ jobs:
       - uses: gutnikov/onemanshow/.github/actions/close-window@main
         with:
           window_minutes: ${{ env.WINDOW_MINUTES }}
+          production_health_url: ${{ inputs.production_health_url }}
           token: ${{ github.token }}

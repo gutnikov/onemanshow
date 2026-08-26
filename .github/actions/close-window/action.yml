@@ -5,6 +5,12 @@ description: >
   held by a process, and it reports even when it finds nothing, so a schedule
   that has stopped is distinguishable from a quiet one.
 inputs:
+  production_health_url:
+    description: >
+      Production's health endpoint, which reports the commit it is running.
+      That commit is the released change, because one change occupies the
+      segment at a time.
+    required: true
   window_minutes:
     description: The observation window's length, from the project's configuration
     required: true
@@ -24,6 +30,7 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.token }}
         OBSERVATION_WINDOW_MINUTES: ${{ inputs.window_minutes }}
+        PRODUCTION_HEALTH_URL: ${{ inputs.production_health_url }}
         RELEASE_WORKFLOW_NAME: ${{ inputs.release_workflow_name }}
         ACTION_DIR: ${{ github.action_path }}
       run: '"$ACTION_DIR/close-window"'

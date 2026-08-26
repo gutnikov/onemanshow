@@ -14,8 +14,10 @@ set -eu
 
 REPO="${GITHUB_REPOSITORY:?}"
 WINDOW="${OBSERVATION_WINDOW_MINUTES:?}"
+HEALTH_URL="${PRODUCTION_HEALTH_URL:?}"
 now="$(date -u +%s)"
 acted=0
+failed=0
 
 echo "window check at $(date -u +%Y-%m-%dT%H:%M:%SZ), window is ${WINDOW}m"
 
@@ -43,11 +45,19 @@ print(int(datetime.datetime.fromisoformat(sys.argv[1].replace('Z','+00:00')).tim
     fi
 
     echo "  #${ticket}: ${elapsed}m elapsed, asking every source"
-    sha="$(gh api "repos/${REPO}/issues/${ticket}/timeline" --paginate \
-            -q '[.[] | select(.event == "referenced")] | last | .commit_id' 2>/dev/null || true)"
-    [ -n "${RELEASE_SHA:-}" ] && sha="$RELEASE_SHA"
-    if [ -z "$sha" ] || [ "$sha" = null ]; then
-      echo "    could not determine which commit was released - leaving it open"
+
+    # Asked of production. The first version read a `referenced` timeline event,
+    # which exists only when a commit message mentions the ticket - and ours do
+    # not, so the sha came back empty, the iteration was skipped, and the window
+    # would have stayed open for ever while reporting that it had asked.
+    #
+    # Production's own answer is also the right one on its merits: the window
+    # asks what has been true of production since this release, and one change
+    # occupies the segment at a time, so what production is running IS this
+    # change.
+    if ! sha="$("${ACTION_DIR}/../production-commit/production-commit" "$HEALTH_URL")"; then
+      echo "::error::#${ticket} cannot be closed: production does not report what it is running, so there is nothing to attribute health to"
+      failed=1
       continue
     fi
 
@@ -107,3 +117,6 @@ Say the word when you want the work started; the state is readable from the tool
 fi
 
 echo "window check finished, ${acted} action(s)"
+# A window that could not be evaluated must not look like a window with nothing
+# to do. The run fails so that the absence is visible where runs are listed.
+[ "$failed" -eq 0 ]
