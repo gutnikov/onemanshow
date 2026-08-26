@@ -122,3 +122,15 @@ for ever.
 - The numbers: how many automatic actions a change gets, and how long the window
   should be for a project with real users rather than a testbed. Both want
   observation rather than a guess, and neither changes the shape of the work.
+
+- **How to exercise the incident path on purpose.** The trigger from a failed
+  smoke to a rollback is the most consequential automatic action here and the
+  only one that has never fired. Firing it requires production to be genuinely
+  broken while staging passed, which is what the deliberate failure switch is
+  for — but that switch is set from the deploy's environment, and no workflow
+  offers a way to set it. Adding an input to the release that breaks production
+  would leave a loaded gun in the template, so this wants a mechanism of its
+  own: a drill that breaks production on purpose, watches the path it triggers,
+  and puts it back. Worth its own change, because the ability to rehearse an
+  incident is a capability rather than a test — and today's work showed that
+  without it, the thing left unexercised is always the most expensive one.
