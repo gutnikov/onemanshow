@@ -20,10 +20,17 @@ inputs:
     default: ""
   max_age_minutes:
     description: >
-      For sweep. Branches older than this are removed; a validation in progress
-      is younger, so this is what separates abandoned from in use.
+      For sweep. A floor, not the rule: it protects a branch created moments ago
+      by a validation whose ticket has not been read yet. What is in use comes
+      from keep_names.
     required: false
-    default: "120"
+    default: "30"
+  keep_names:
+    description: >
+      For sweep. Space-separated branch names still in use, derived from which
+      changes are in staging. Everything else is finished with.
+    required: false
+    default: ""
   project:
     description: The provider's staging project id
     required: true
@@ -52,12 +59,13 @@ runs:
         NAME: ${{ inputs.name }}
         BRANCH_ID: ${{ inputs.branch_id }}
         MAX_AGE: ${{ inputs.max_age_minutes }}
+        KEEP_NAMES: ${{ inputs.keep_names }}
         ACTION_PATH: ${{ github.action_path }}
       run: |
         case "$MODE" in
           create)  "$ACTION_PATH/staging-branch" create "$NAME" ;;
           restore) "$ACTION_PATH/staging-branch" restore "$BRANCH_ID" ;;
           delete)  "$ACTION_PATH/staging-branch" delete "$BRANCH_ID" ;;
-          sweep)   "$ACTION_PATH/staging-branch" sweep "$MAX_AGE" ;;
+          sweep)   "$ACTION_PATH/staging-branch" sweep "$MAX_AGE" $KEEP_NAMES ;;
           *) echo "::error::unknown mode '$MODE'"; exit 1 ;;
         esac

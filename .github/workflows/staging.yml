@@ -131,11 +131,20 @@ jobs:
       # while the data lived in a bind mount, so it destroyed nothing and said
       # it had. A branch that has just been created cannot contain residue, and
       # the action checks that it does not.
+      # Resolved before the branch, because the branch belongs to the change
+      # rather than to this run: it has to outlive the validation so that the
+      # person asked to look at the stand finds a stand that works.
+      - id: ticket
+        uses: gutnikov/onemanshow/.github/actions/ticket-status@main
+        with:
+          sha: ${{ inputs.sha }}
+          token: ${{ github.token }}
+
       - id: branch
         uses: gutnikov/onemanshow/.github/actions/staging-branch@main
         with:
           mode: create
-          name: v-${{ github.run_id }}
+          name: t-${{ steps.ticket.outputs.ticket }}
           project: ${{ env.STAGING_PROJECT }}
           key: ${{ env.NEON_API_KEY }}
 
@@ -227,25 +236,18 @@ jobs:
           target_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           token: ${{ github.token }}
 
-      # always(): a branch left behind consumes an allowance of ten, and a
-      # failed run is exactly when nobody is watching.
-      - name: give the branch back
-        if: always()
-        uses: gutnikov/onemanshow/.github/actions/staging-branch@main
-        with:
-          mode: delete
-          branch_id: ${{ steps.branch.outputs.branch_id }}
-          project: ${{ env.STAGING_PROJECT }}
-          key: ${{ env.NEON_API_KEY }}
+      # The branch is deliberately NOT deleted here. Deleting it at the end of a
+      # validation left the application deployed against a database that no
+      # longer existed, so the stand answered "database-unreachable" the moment
+      # the run went green - and the stand is the whole artifact of the handover
+      # the next step asks a person to inspect. Found by looking at it, not by
+      # any check.
+      #
+      # It is released when the change leaves staging: by the merge, by the
+      # abandon path, and by the sweep as a backstop.
 
       # always(): the red path is the one that most needs to reach a person, and
       # a report that only happens on success says nothing when it matters.
-      - id: ticket
-        if: always()
-        uses: gutnikov/onemanshow/.github/actions/ticket-status@main
-        with:
-          sha: ${{ inputs.sha }}
-          token: ${{ github.token }}
       - name: record the outcome in the thread
         if: always() && steps.ticket.outputs.ticket != ''
         uses: gutnikov/onemanshow/.github/actions/report-staging@main

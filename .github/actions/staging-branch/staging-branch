@@ -84,6 +84,27 @@ case "${1:?usage: staging-branch <create|restore|delete|sweep> ...}" in
 
 create)
   NAME="${2:?a branch name is required}"
+  # Create or reuse. A branch belongs to the change under review, not to one
+  # run, so revalidating the same change finds its branch and empties it rather
+  # than failing on a name that already exists - and the ten-branch allowance
+  # is spent per change instead of per attempt.
+  existing="$(api GET "/projects/${PROJECT}/branches" | NAME="$NAME" python3 -c '
+import json, os, sys
+name = os.environ["NAME"]
+print(next((b["id"] for b in json.load(sys.stdin)["branches"] if b["name"] == name), ""))')"
+  if [ -n "$existing" ]; then
+    echo "reusing ${NAME} (${existing})"
+    parent="$(default_branch)"
+    api POST "/projects/${PROJECT}/branches/${existing}/restore" \
+      "{\"source_branch_id\":\"${parent}\"}" >/dev/null
+    settle
+    url="$(connection_uri "$existing")"
+    echo "::add-mask::$url"
+    emit "branch_id=${existing}"
+    emit "url=${url}"
+    assert_empty "$url"
+    exit 0
+  fi
   out="$(api POST "/projects/${PROJECT}/branches" \
           "{\"branch\":{\"name\":\"${NAME}\"},\"endpoints\":[{\"type\":\"read_write\"}]}")"
   id="$(printf '%s' "$out" | python3 -c '
@@ -130,32 +151,46 @@ delete)
 # Reached by accident, that stops validation for a reason nobody can see - so
 # this runs on the schedule that already reports what it found.
 sweep)
-  MAX_AGE_MIN="${2:-120}"
-  api GET "/projects/${PROJECT}/branches" | MAX_AGE_MIN="$MAX_AGE_MIN" python3 -c '
+  # A branch belongs to a change while that change is in staging. So what to
+  # keep is derived from the tickets, not from a timer: the caller passes the
+  # names that are still in use, and everything else is finished with.
+  #
+  # The age floor is not a second opinion about that - it protects a branch
+  # created moments ago by a validation whose ticket label has not been read
+  # yet by this run.
+  MAX_AGE_MIN="${2:-30}"
+  shift 2 2>/dev/null || shift 1
+  KEEP="$*"
+  echo "keeping in use: ${KEEP:-none}"
+  api GET "/projects/${PROJECT}/branches" | MAX_AGE_MIN="$MAX_AGE_MIN" KEEP="$KEEP" python3 -c '
 import datetime, json, os, sys
 limit = int(os.environ["MAX_AGE_MIN"])
+keep = set(os.environ.get("KEEP", "").split())
 now = datetime.datetime.now(datetime.timezone.utc)
-kept, doomed = [], []
+rows = []
 for b in json.load(sys.stdin)["branches"]:
     if b.get("default"):
         continue
     created = datetime.datetime.fromisoformat(b["created_at"].replace("Z", "+00:00"))
     age = int((now - created).total_seconds() // 60)
-    (doomed if age >= limit else kept).append((b["id"], b["name"], age))
-for i, n, a in doomed:
-    print(f"DELETE\t{i}\t{n}\t{a}")
-for i, n, a in kept:
-    print(f"KEEP\t{i}\t{n}\t{a}")
+    if b["name"] in keep:
+        rows.append(("KEEP", b["id"], b["name"], age, "its change is in staging"))
+    elif age < limit:
+        rows.append(("KEEP", b["id"], b["name"], age, "too young to judge"))
+    else:
+        rows.append(("DELETE", b["id"], b["name"], age, "no change in staging owns it"))
+for r in sorted(rows):
+    print("\t".join(str(x) for x in r))
 ' > /tmp/sweep.tsv
   swept=0
-  while IFS="$(printf '\t')" read -r verdict id name age; do
+  while IFS="$(printf '\t')" read -r verdict id name age why; do
     case "$verdict" in
       DELETE)
         api DELETE "/projects/${PROJECT}/branches/${id}" >/dev/null
-        echo "  swept ${name} (${id}), ${age}m old"
+        echo "  swept ${name} (${id}), ${age}m old - ${why}"
         swept=$((swept + 1))
         ;;
-      KEEP) echo "  kept ${name} (${id}), ${age}m old - a validation may be using it" ;;
+      KEEP) echo "  kept ${name} (${id}), ${age}m old - ${why}" ;;
     esac
   done < /tmp/sweep.tsv
   total="$(api GET "/projects/${PROJECT}/branches" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["branches"]))')"

@@ -45,6 +45,7 @@ jobs:
           print(f"SENTRY_ORG={obs.get('sentry_org') or ''}")
           print(f"SENTRY_PROJECT={obs.get('sentry_project') or ''}")
           print(f"LIVENESS_SOURCE={obs.get('liveness') or ''}")
+          print(f"STAGING_PROJECT={((c.get('roles') or {}).get('database') or {}).get('staging_project') or ''}")
           PY
 
       # Actions masks values that came from secrets.*, and nothing else.
@@ -55,9 +56,32 @@ jobs:
           v="$(sops -d --extract '["SENTRY_READ_TOKEN"]' secrets/ci.yaml)"
           echo "::add-mask::$v"
           echo "SENTRY_READ_TOKEN=$v" >> "$GITHUB_ENV"
+          k="$(sops -d --extract '["NEON_API_KEY"]' secrets/ci.yaml)"
+          echo "::add-mask::$k"
+          echo "NEON_API_KEY=$k" >> "$GITHUB_ENV"
 
       - uses: gutnikov/onemanshow/.github/actions/close-window@main
         with:
           window_minutes: ${{ env.WINDOW_MINUTES }}
           production_health_url: ${{ inputs.production_health_url }}
           token: ${{ github.token }}
+
+      # A staging branch belongs to a change while that change is in staging, so
+      # what to keep is derived from the tickets rather than from a timer. The
+      # allowance is ten and a limit reached by accident stops validation for a
+      # reason nobody can see, which is why this runs on the schedule that
+      # already reports what it found.
+      - id: in_use
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          set -eu
+          names="$(gh issue list --state open --label status:staging --json number \
+                     -q '[.[] | "t-" + (.number|tostring)] | join(" ")')"
+          echo "names=${names}" >> "$GITHUB_OUTPUT"
+          echo "changes in staging: ${names:-none}"
+      - uses: gutnikov/onemanshow/.github/actions/staging-branch@main
+        with:
+          mode: sweep
+          keep_names: ${{ steps.in_use.outputs.names }}
+          project: ${{ env.STAGING_PROJECT }}
+          key: ${{ env.NEON_API_KEY }}
