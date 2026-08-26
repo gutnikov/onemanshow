@@ -43,4 +43,5 @@ jobs:
       - uses: gutnikov/onemanshow/.github/actions/merge-change@main
         with:
           ticket: ${{ github.event.issue.number }}
+          head: ${{ steps.pr.outputs.head }}
           token: ${{ github.token }}

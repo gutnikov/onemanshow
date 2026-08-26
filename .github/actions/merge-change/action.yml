@@ -7,6 +7,12 @@ inputs:
   ticket:
     description: Ticket number of the change being merged
     required: true
+  head:
+    description: >
+      The commit that would become main's head, resolved once by pr-head.
+      Resolved here as well, it became a second lookup with a second failure
+      mode - which failed a repeated approval after all six guards had passed.
+    required: true
   release_workflow:
     description: >
       Filename of the instance workflow that releases. Dispatched after the
@@ -29,5 +35,6 @@ runs:
         GH_TOKEN: ${{ inputs.token }}
         RELEASE_WORKFLOW: ${{ inputs.release_workflow }}
         TICKET: ${{ inputs.ticket }}
+        HEAD: ${{ inputs.head }}
         ACTION_PATH: ${{ github.action_path }}
-      run: '"$ACTION_PATH/merge-change" "$TICKET"'
+      run: '"$ACTION_PATH/merge-change" "$TICKET" "$HEAD"'

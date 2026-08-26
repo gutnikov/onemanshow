@@ -7,18 +7,13 @@
 # different artifact wearing the same name.
 set -eu
 
-TICKET="${1:?usage: merge-change <ticket>}"
-REPO="${GITHUB_REPOSITORY:?}"
-
-pr="$(gh pr list --state open --json number,headRefName,headRefOid \
-        -q "[.[] | select(.headRefName | startswith(\"ship/${TICKET}-\"))] | first")"
-if [ -z "$pr" ] || [ "$pr" = null ]; then
-  echo "::error::no open pull request found on a branch named ship/${TICKET}-..."
-  exit 1
-fi
-head="$(printf '%s' "$pr" | python3 -c 'import json,sys; print(json.load(sys.stdin)["headRefOid"])')"
-number="$(printf '%s' "$pr" | python3 -c 'import json,sys; print(json.load(sys.stdin)["number"])')"
-echo "pull request #${number}, head ${head}"
+# The head is given, not resolved again. Resolving it here as well as in pr-head
+# meant two lookups with two failure modes, and the second one failed the run
+# after all six guards had passed - on a repeated approval, where the whole
+# point is to find the work already done.
+TICKET="${1:?usage: merge-change <ticket> <head-sha>}"
+head="${2:?usage: merge-change <ticket> <head-sha>}"
+echo "merging ${head}"
 
 git fetch -q origin main
 if git merge-base --is-ancestor "$head" origin/main; then
