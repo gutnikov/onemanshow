@@ -31,8 +31,13 @@ proxy:
   ssl: true
   host: <%= ENV.fetch("SHIP_DOMAIN") %>
   app_port: 3000
+  # Liveness, not readiness. Whether this proxy polls continuously is a fact
+  # this project does not have - and pointing it here makes the fact irrelevant,
+  # which is better than depending on it either way. The check that readiness
+  # exists for, refusing a container whose schema has moved past its code, is an
+  # explicit step in the release where it can be seen.
   healthcheck:
-    path: /health
+    path: /alive
 
 registry:
   server: <%= ENV.fetch("SHIP_REGISTRY_SERVER", "docker.io") %>

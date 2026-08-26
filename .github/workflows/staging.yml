@@ -125,7 +125,7 @@ jobs:
       - id: prod
         uses: gutnikov/onemanshow/.github/actions/production-commit@main
         with:
-          health_url: https://${{ inputs.domain }}/health
+          health_url: https://${{ inputs.domain }}/alive
 
       # Created, not emptied. The action this replaces removed a named volume
       # while the data lived in a bind mount, so it destroyed nothing and said

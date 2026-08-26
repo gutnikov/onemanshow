@@ -14,6 +14,17 @@ test('page renders a greeting', { tag: '@smoke' }, async ({ page }) => {
   await expect(greeting).not.toBeEmpty();
 });
 
+test('liveness answers without the database', { tag: '@smoke' }, async ({ request }) => {
+  const response = await request.get('/alive');
+  expect(response.status()).toBe(200);
+  const body = await response.json();
+  expect(body).toMatchObject({ alive: true });
+  // Asserted as a shape, not a value: this runs on the migration-safety pass
+  // against data that is not this change's, and an artifact's identity is not
+  // content - it comes from the image.
+  expect(body.release).toMatch(/^[0-9a-f]{40}$/);
+});
+
 test('readiness endpoint reports ready', { tag: '@smoke' }, async ({ request }) => {
   const response = await request.get('/health');
   expect(response.status()).toBe(200);

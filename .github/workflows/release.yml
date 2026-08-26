@@ -107,7 +107,7 @@ jobs:
         continue-on-error: true
         uses: gutnikov/onemanshow/.github/actions/production-commit@main
         with:
-          health_url: https://${{ inputs.domain }}/health
+          health_url: https://${{ inputs.domain }}/alive
 
       - name: migrate production
         run: |
@@ -117,6 +117,30 @@ jobs:
       - name: deploy
         uses: gutnikov/onemanshow/.github/actions/kamal@main
         with: { args: "deploy --skip-push --version ${{ inputs.sha }}-production" }
+
+      # The deep check, explicit and in the pipeline. It used to be the proxy's
+      # health check path, which made a load-bearing guarantee an implicit
+      # consequence of a setting - and readiness detecting a schema *ahead* of
+      # the code is what makes a bad rollback fail, which the rollback decision
+      # below rests on. Too important to be a side effect.
+      - name: production must be ready, not merely alive
+        run: |
+          set -eu
+          i=0
+          while [ "$i" -lt 30 ]; do
+            body="$(curl -sS --max-time 10 "https://${{ inputs.domain }}/health" || true)"
+            case "$body" in
+              *'"ready":true'*) echo "ready: $body"; exit 0 ;;
+              *'"schema-ahead"'*)
+                echo "::error::the deployed code is older than the schema it found." \
+                     "That is the state a rollback leaves, and it is not healthy:" \
+                     "$body"
+                exit 1 ;;
+            esac
+            i=$((i + 1)); sleep 2
+          done
+          echo "::error::production did not become ready within 60s of the deploy: ${body:-no response}"
+          exit 1
 
       - name: smoke
         id: smoke
