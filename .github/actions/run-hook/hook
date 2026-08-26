@@ -4,7 +4,7 @@
 # workflow cannot be tested without running CI, and degradation is behaviour we
 # have to be able to verify.
 #
-# Usage: .github/scripts/hook <check|build|migrate|seed|e2e|smoke>
+# Usage: .github/scripts/hook <check|build|migrate|seed|e2e|smoke|signin>
 set -eu
 
 NAME="${1:?usage: hook <name>}"
@@ -48,6 +48,13 @@ case "$NAME" in
   smoke)
     degraded "falling back to GET / expecting 2xx"
     curl -fsS -o /dev/null "${SHIP_URL:?}/"
+    ;;
+  # No fallback, deliberately. There is nothing weaker that still answers the
+  # question, and an application with no accounts is the ordinary reason for
+  # this hook to be missing. What matters is that the release says signing in
+  # went unexercised rather than leaving it to be assumed.
+  signin)
+    degraded "signing in is not exercised in production"
     ;;
   *)
     note "error: unknown hook ${NAME}"

@@ -10,7 +10,7 @@ description: >
   its own files, so improvements arrive by reference like the YAML does.
 inputs:
   name:
-    description: check, build, migrate, seed, e2e or smoke
+    description: check, build, migrate, seed, e2e, smoke or signin
     required: true
 runs:
   using: composite

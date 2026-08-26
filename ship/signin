@@ -1,0 +1,21 @@
+#!/bin/sh
+# Signs in against the environment named by SHIP_URL.
+#
+# Separate from ship/smoke on purpose. Smoke also runs against the stand on the
+# content-agnostic pass, where the data is whatever production's code produced;
+# a check that needs a particular account to exist cannot go there without
+# dissolving that property.
+#
+# The release runs this twice - before the deploy and after it - so that a
+# failure is attributable. Before, it is asking the artifact already running,
+# which is the one thing in the release known to work: a failure there means the
+# stored credential or production itself, not the change. After, a failure is
+# the change's.
+#
+# The account is passed in through SHIP_SIGNIN_EMAIL and SHIP_SIGNIN_PASSWORD.
+# Without them the test falls back to the seeded fixture, which is what makes
+# this runnable against the stand and locally.
+set -eu
+: "${SHIP_URL:?SHIP_URL is not set}"
+npx playwright install --with-deps chromium
+npx playwright test --grep @signin

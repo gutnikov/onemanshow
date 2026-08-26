@@ -74,6 +74,14 @@ is written in.
 | `ship/seed` | write synthetic fixtures | nothing to seed |
 | `ship/e2e` | test against `$SHIP_URL` | staging becomes human-only |
 | `ship/smoke` | non-mutating checks against `$SHIP_URL` | `GET /` expecting 2xx |
+| `ship/signin` | sign in against `$SHIP_URL`, read-only | signing in goes unexercised, and the release says so |
+
+`ship/signin` is separate from `ship/smoke` because smoke also runs against the
+stand on a pass that deliberately asserts nothing about content, and a check
+that needs a particular account to exist is content. The release runs it twice,
+before and after the deploy: a failure before means the stored credential, a
+failure after means this change, and those want opposite responses. A green pair
+means the session round trip works in production — not that identity does.
 
 ## Rules worth knowing before you fight them
 

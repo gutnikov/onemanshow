@@ -22,6 +22,21 @@ migrated production baseline. It answers: did the migration break the
 application against data shaped like production's? It deliberately asserts
 nothing about *content*, because the content is not this change's.
 
+Which is why the check that **signs in** is not in that set. It needs a
+particular account to exist, and that is content by definition. It lives in
+`ship/signin`, which this pass does not run — putting it here would dissolve the
+property that makes this pass safe, and would fail every change that touches a
+fixture account.
+
+**What production checks about identity, and what it does not.** The release
+runs `ship/signin` twice — before it changes anything and again after the
+deploy — and a green pair means one thing: an account can sign in through the
+form, the browser keeps the cookie, and a page behind a session renders. It says
+nothing about organisations beyond one existing, nothing about invitations,
+nothing about verified addresses, and nothing about anybody's real account,
+because the account it uses belongs to nobody. Read it as "the session round
+trip works in production", not as "identity works".
+
 **Run two — feature correctness.** The database is emptied, seeded at this
 change's own commit, and the full end-to-end suite runs. Now the fixtures are
 the ones the tests were written against.

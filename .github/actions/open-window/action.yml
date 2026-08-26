@@ -14,6 +14,14 @@ inputs:
   outcome:
     description: success, or anything else for failure
     required: true
+  production:
+    description: >
+      What happened to production - untouched, migrated, deployed or rewound.
+      Passed in rather than inferred from the outcome: a failed release may have
+      changed nothing, moved the schema, deployed, or been rewound, and the
+      sentence a person reads has to be the true one.
+    required: false
+    default: ""
   status:
     description: The ticket's current status label
     required: true
@@ -40,5 +48,6 @@ runs:
         TICKET: ${{ inputs.ticket }}
         SHA: ${{ inputs.sha }}
         OUTCOME: ${{ inputs.outcome }}
+        PRODUCTION: ${{ inputs.production }}
         ACTION_PATH: ${{ github.action_path }}
       run: '"$ACTION_PATH/open-window" "$TICKET" "$SHA" "$OUTCOME"'

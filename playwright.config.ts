@@ -10,5 +10,10 @@ if (baseURL === undefined || baseURL === '') {
 export default defineConfig({
   testDir: './e2e',
   reporter: process.env['CI'] === undefined ? 'list' : 'github',
+  // Above the worst case of waiting out the sign-in throttle. The default 30s
+  // was under it: three refusals cost about 31s, so a test that had to wait
+  // died mid-wait and reported a timeout, which reads as a hung application
+  // rather than as a throttle doing its job.
+  timeout: 60_000,
   use: { baseURL, trace: 'retain-on-failure' },
 });

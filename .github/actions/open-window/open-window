@@ -36,15 +36,37 @@ Run: ${RUN}")"
     echo "ticket #${TICKET}: ready-to-release -> released, window open"
     ;;
   *)
+    # What production is now, said rather than assumed. The old version of this
+    # message asserted that nothing had been rolled back on every failure,
+    # including the failures that had just rewound production - it was telling
+    # the reader the opposite of what happened, at the moment they were deciding
+    # what to do about it.
+    case "${PRODUCTION:-}" in
+      untouched)
+        WHERE="**Production was not touched.** The release stopped before migrating or deploying, so there is nothing to undo. The likely causes are the stored credentials or a production that was already unwell — not this change."
+        ;;
+      migrated)
+        WHERE="**The schema moved and the deploy did not happen.** Production is running the previous image against a schema that has advanced past it, which readiness refuses to call healthy. Going forward is the way out; rewinding is not, because there is nothing to rewind to that fits this schema."
+        ;;
+      deployed)
+        WHERE="**Production is running the new artifact and nothing was rolled back.** Rewinding restores neither the configuration nor the schema, so it is not the safe default it appears to be — and if the migration has already run, the previous image may not work against the schema it finds, which turns \"step back until it works\" into a cascade that never terminates."
+        ;;
+      rewound)
+        WHERE="**Production was rewound to the previous artifact, and the release still failed.** So the previous version did not pass verification either, and stepping further back is not the answer: whatever is wrong is not the image."
+        ;;
+      *)
+        WHERE="**What happened to production was not reported.** Ask it directly rather than assuming either way — that is the whole reason this sentence is derived and not guessed."
+        ;;
+    esac
     gh issue edit "$TICKET" --add-label blocked:rollback 2>/dev/null || true
     gh issue comment "$TICKET" --body "$(printf '%s' "\
 ## The release failed on \`${SHA}\`
 
 Marked \`blocked:rollback\`. Run: ${RUN}
 
-**Nothing has been rolled back.** Rewinding the artifact restores neither the configuration nor the schema, so it is not the safe default it appears to be — and if the migration has already run, the previous image may not work against the schema it finds, which turns \"step back until it works\" into a cascade that never terminates.
+${WHERE}
 
 This needs reading, not reflex. Say the word.")"
-    echo "ticket #${TICKET}: release failed, blocked:rollback"
+    echo "ticket #${TICKET}: release failed, blocked:rollback, production ${PRODUCTION:-unreported}"
     ;;
 esac

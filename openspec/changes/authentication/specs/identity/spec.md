@@ -67,9 +67,17 @@ What smoke does while signed in SHALL be read-only. Creating data as the synthet
 
 The synthetic account's credentials SHALL be a secret like any other, and its existence SHALL be visible: an account that can sign in to production is an attack surface, and one nobody remembers creating is worse than one written down.
 
+The check SHALL sign in **through the form, in a browser**, not by calling the endpoint and injecting the cookie it returns. The two are not equivalent, and the difference is the whole reason this check exists: cookie flags and the client bundle are the only failure class it uniquely catches, and an endpoint call satisfies the words above while missing all of them.
+
+It SHALL run twice — once against the running production before anything is changed, and once after the deploy — because one probe cannot say whose fault a failure is. `delivery-pipeline` carries what the two positions mean.
+
 #### Scenario: Smoke signs in after a release
-- **WHEN** the smoke set runs against production
-- **THEN** it signs in as the synthetic account, reaches a page that requires a session, and creates nothing
+- **WHEN** the check runs against production
+- **THEN** it signs in as the synthetic account through the form, reaches a page that requires a session, and leaves behind only the session that signing in creates
+
+#### Scenario: The check is written as an endpoint call instead
+- **WHEN** signing in is exercised by posting to the endpoint and injecting the returned cookie
+- **THEN** the requirement is not met, because the failure class it exists to catch lives in the browser's treatment of the cookie and in the client bundle
 
 #### Scenario: Sign-in breaks through environment configuration
 - **WHEN** a change works on the stand and breaks signing in in production because a value differs between them
@@ -80,7 +88,7 @@ The synthetic account's credentials SHALL be a secret like any other, and its ex
 - **THEN** it exercises signing up, organisation scoping and whatever else requires writing, because the stand is seeded and its residue is discarded
 
 ### Requirement: Repeated sign-in attempts are refused
-Sign-in SHALL be throttled per client address. The library's own default is three attempts per ten seconds for anything under `/sign-in`, counted per address and per path, and it counts refused attempts — which is the point, since guessing is what it defends against. It is active whenever the application runs as production, so it is active on the stand as well as in production.
+Sign-in SHALL be throttled per client address. The library's own default is three attempts per ten seconds for anything under `/sign-in`, counted per address and per path. An attempt refused *for a wrong password* counts, which is the point, since guessing is what it defends against. An attempt refused *by the throttle itself* does not: it neither counts nor extends the window, which is why waiting and asking again terminates instead of pushing the allowance further away. It is active whenever the application runs as production, so it is active on the stand as well as in production.
 
 The throttle SHALL NOT be relaxed to make tests pass. This is written down because the first version of the suite signed in six times in ten seconds and was therefore never reliably green; the failure looked like a flake, then like contention, then like broken organisation scoping, and was none of those.
 

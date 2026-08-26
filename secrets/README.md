@@ -1,8 +1,13 @@
 # Secrets
 
-`staging.yaml` and `prod.yaml` are committed **encrypted**. The example files
-next to them show the shape and are committed in plaintext because they contain
-nothing.
+`staging.yaml`, `prod.yaml` and `ci.yaml` are committed **encrypted**. The
+example files next to them show the shape and are committed in plaintext because
+they contain nothing.
+
+The split matters. `prod.yaml` and `staging.yaml` are what the container is
+given; `ci.yaml` is what the pipeline uses. A value the application never reads
+does not belong in the first two, because changing one of those redeploys the
+application — which happened once, for a test account's password.
 
 ## The one secret that is not here
 

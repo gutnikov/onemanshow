@@ -6,6 +6,13 @@ description: >
 inputs:
   url: { description: Address of production, required: true }
   service: { description: Service name of the production destination, required: true }
+outputs:
+  rewound:
+    description: >
+      Whether the image was actually rewound. Read rather than inferred: a
+      release that failed is not the same as a production that moved, and the
+      message a person reads afterwards has to know the difference.
+    value: ${{ steps.rewind.outputs.rewound }}
 runs:
   using: composite
   steps:
@@ -67,7 +74,8 @@ runs:
         echo "prev=$prev" >> "$GITHUB_OUTPUT"
         echo "rolling back to $prev"
 
-    - shell: sh
+    - id: rewind
+      shell: sh
       env:
         PREV: ${{ steps.previous.outputs.prev }}
       run: |
@@ -75,6 +83,9 @@ runs:
           -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER \
           -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
           ghcr.io/basecamp/kamal:v2.12.0 rollback "$PREV"
+        # After the command, not before: this says what happened, not what was
+        # attempted.
+        echo 'rewound=yes' >> "$GITHUB_OUTPUT"
 
     # The cascade guard. If the previous version fails too, the cause is not the
     # image - most likely a migration already applied that older code cannot work
