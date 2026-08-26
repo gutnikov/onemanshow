@@ -22,6 +22,29 @@ in practice is the worst state there is: every file agrees the role is set up
 while it does nothing. That exact failure hid broken error reporting through a
 deliberate outage here.
 
+## Three things the pipeline needs before any of it works
+
+None is code, all three are settings, and each fails in a way that looks like
+something else.
+
+**The labels.** Every status and every `blocked:` cause has to exist as a label,
+because the whole state machine is read from them. A missing label makes the
+transition that applies it fail — and if that failure is swallowed, the change
+is announced as blocked in a comment while the ticket shows nothing, which the
+guards then read as no incident. Create them all, including
+`blocked:budget`.
+
+**The token ceiling.** The code host's default workflow permission has to allow
+write, or a workflow asking for it fails **before any job exists** — a startup
+failure with no log to read. Raising the ceiling widens every job that declares
+nothing, so the workflows declare their own permissions; the ceiling only makes
+the request possible.
+
+**Branch protection on the default branch.** Every merge guard is bypassed by a
+direct push, and pushing directly is easier than not. Without protection the
+guards constrain the automation that was going to obey them anyway, and nothing
+else.
+
 ## Clear the template's history first
 
 A created project inherits the template's own planning artifacts, because a

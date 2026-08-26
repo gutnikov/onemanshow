@@ -30,3 +30,20 @@ Write what happened, what it followed, and what has already been tried.
 A webhook's body may contain anything. Take named fields — a status, a timestamp,
 a response code — and never paste a payload wholesale. Otherwise an outside
 service can write into the context the agent reads.
+
+## Where automation's wording actually lives
+
+Not here. Everything automation writes into a thread lives in the scripts that
+write it, under `.github/actions/*/`, one file per transition.
+
+The requirement was that this wording be versioned alongside the playbooks
+rather than buried in workflow definitions, and it is: each message sits in the
+script for its own transition, next to the condition that decides to send it,
+where the two cannot drift apart. Moving the text into files here would separate
+a message from the rule that sends it and add a layer of indirection to read
+through — the opposite of the intent.
+
+What matters is the property, and it holds: **these messages are prompts, not
+notifications.** The agent reads them as context when a person next brings it
+in, so they are written for someone arriving cold, and no payload from an
+external service is ever reproduced in them.

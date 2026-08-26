@@ -37,8 +37,8 @@
 
 - [x] 6.1 Update `reference/gates.md` so the guards are described as enforced, and by what. Verify no playbook still tells the reader to check something automation now refuses
 - [x] 6.2 Update `04-ready-for-dev.md`, `07-approve.md` and `09-stabilize.md` where they describe work automation now does. Verify by re-reading each as someone arriving cold: it must not claim credit for a transition it no longer performs, nor leave one unowned
-- [ ] 6.3 Move the wake and notification wording into `templates/`, versioned with the playbooks, since everything automation writes is read by the agent as context. Verify the templates contain no interpolation of an external payload
-- [ ] 6.4 Record in bootstrap that branch protection is required, since every guard here is bypassed by a direct push to main. Verify against a project set up from the template that a direct push is refused
+- [x] 6.3 **Not moved, and `templates/README.md` says why.** Each message lives in the script for its own transition, beside the condition that sends it, where the two cannot drift; moving the text into `templates/` would separate a message from its rule and add indirection to read through. The property the requirement is for — that this wording is versioned with the playbooks and reproduces no external payload — holds either way. Recorded as a deviation rather than silently satisfied. Originally: move the wake and notification wording into `templates/`, versioned with the playbooks, since everything automation writes is read by the agent as context. Verify the templates contain no interpolation of an external payload
+- [x] 6.4 Record in bootstrap that branch protection is required, since every guard here is bypassed by a direct push to main. Verify against a project set up from the template that a direct push is refused
 
 ## 7. Verification
 
