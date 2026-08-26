@@ -59,7 +59,8 @@ jobs:
           case "$count" in
             0) echo "::error::nothing is in ready-to-release, so there is nothing to merge"; exit 1 ;;
             1) echo "ticket #${found}, derived from the label"; echo "ticket=${found}" >> "$GITHUB_OUTPUT" ;;
-            *) echo "::error::#${found} all carry status:ready-to-release." \
+            *) pretty="$(printf '%s' "$found" | sed 's/[0-9][0-9]*/#&/g; s/ /, /g')"
+               echo "::error::${pretty} all carry status:ready-to-release." \
                     "Which one to merge is a decision, not a lookup - apply the label to one of them," \
                     "or say which by running this from its own label event."; exit 1 ;;
           esac

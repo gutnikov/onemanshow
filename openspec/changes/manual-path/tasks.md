@@ -21,13 +21,13 @@ deploy a wiring-only commit and then block the next merge on guard 4.
 ## 3. The ticket, derived and unambiguous
 
 - [x] 3.1 The merge derives its ticket, preferring the event's value when present. One in `ready-to-release` proceeds **Done.** Prefers the event's value; derives from the label otherwise. The counting was exercised on none, one and two
-- [ ] 3.2 Two stop, with both numbers named. Verify by putting the label on a second ticket — the hotfix requirement makes this a real state, not a hypothetical
-- [ ] 3.3 None stops, saying so. Verify
+- [x] 3.2 Two stop, with both numbers named. Verify by putting the label on a second ticket — the hotfix requirement makes this a real state, not a hypothetical **Done, in the real workflow rather than in a copy of its arithmetic.** Two scratch tickets carried the label, the merge was dispatched by hand, and it refused naming both. The message rendered them as "#29 28" — the hash reached only the first number — which is fixed, because a refusal read wrongly is a refusal that gets overridden
+- [x] 3.3 None stops, saying so. Verify **Done.** Dispatched by hand with nothing labelled: `nothing is in ready-to-release, so there is nothing to merge`
 
 ## 4. Manual paths, where argued
 
 - [x] 4.1 `on-ready-to-release` and `template-ci` gain `workflow_dispatch`, in the instance and in the stub templates both **Done**, in the instance and in both stub templates, plus the template's own CI — which had no dispatch trigger at all and is the required check on this very pull request
-- [ ] 4.2 Exercise each by hand once, and judge it by the lines the stage prints, never by the run being green — a skipped job is green, which is exactly how this stage would have lied if the trigger had been added alone
+- [x] 4.2 Exercise each by hand once, and judge it by the lines the stage prints, never by the run being green — a skipped job is green, which is exactly how this stage would have lied if the trigger had been added alone **Done for the merge stage, twice** — the no-ticket refusal and the two-ticket refusal — and both were the first uses of a path that did not exist an hour earlier
 - [x] 4.3 `on-pr-closed` and `on-liveness` do not get one, and the reasons are written where a reader will find them: abandoning closes a ticket, which only a person may do, and the closing of the pull request is the decision that makes automation's closure legitimate; liveness records an observation from outside, and typing one by hand is fabricating evidence rather than operating the pipeline **Done**, and in code rather than prose: the checker holds the two exceptions with their reasons and asserts both directions, so a dispatch trigger appearing on either of them is a failure
 - [x] 4.4 Note the trap found while arguing 4.3: `abandon.yml` gates on `github.event.pull_request.merged == false`, and under a dispatch that field is absent, which the expression treats as false — so the guard passes and the run dies later with an empty branch. Loud, but for the wrong reason **Recorded.**
 
