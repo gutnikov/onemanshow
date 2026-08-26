@@ -63,7 +63,7 @@ env:
     # origin is taken from the incoming request, so callbacks and redirects
     # depend on whichever host a caller used - and the two environments differ
     # in exactly that. Overridden for staging.
-    SHIP_PUBLIC_HOST: <%= ENV.fetch("SHIP_DOMAIN") %>
+    SHIP_PUBLIC_URL: https://<%= ENV.fetch("SHIP_DOMAIN") %>
   secret:
     - DATABASE_URL
     - SENTRY_DSN

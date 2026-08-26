@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { greeting } from '@shared/schema';
 import { flag } from '@shared/env';
 import type { connect } from '../db/client';
+import { createAuth, organisationOf } from './auth';
 import { checkReadiness } from './readiness';
 import { releaseFromVersion } from './observability';
 
@@ -11,7 +12,34 @@ import { releaseFromVersion } from './observability';
  * build rather than a defect somebody finds on staging.
  */
 export function createRoutes(connection: ReturnType<typeof connect>) {
+  const auth = createAuth(connection);
+
   return new Hono()
+    // The identity library owns everything under this prefix: sign-up, sign-in,
+    // sign-out, session. Mounted outside the typed chain because it is not our
+    // route to describe - it answers with whatever the library decides.
+    .on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw))
+
+    // Who is signed in, and which organisation they belong to. The one endpoint
+    // that requires a session, so that the page behind it proves a session is
+    // created, carried and read - rather than the capability being asserted.
+    .get('/api/me', async (c) => {
+      const session = await auth.api.getSession({ headers: c.req.raw.headers });
+      if (session === null) {
+        return c.json({ error: 'not signed in' as const }, 401);
+      }
+      const organisation = await organisationOf(connection, session.user.id);
+      if (organisation === undefined) {
+        // Every account gets one when it is created, so this means the row is
+        // missing rather than absent by design - worth saying differently from
+        // "not signed in".
+        return c.json({ error: 'no organisation' as const }, 500);
+      }
+      return c.json({
+        email: session.user.email,
+        organisation: { id: organisation.id, name: organisation.name },
+      });
+    })
     .get('/api/greeting', async (c) => {
       // Deliberate failure switch. It breaks the page while the process stays
       // up and /health keeps answering 2xx - the "up but broken" mode that a

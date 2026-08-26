@@ -6,9 +6,11 @@ import {
   createRoute,
   createRouter,
 } from '@tanstack/react-router';
+import { useState } from 'react';
 import { Card, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
+import { authClient } from '@/lib/auth';
 
 const queryClient = new QueryClient();
 
@@ -30,6 +32,98 @@ function Greeting() {
   if (isError) return <p data-testid="greeting-state">unavailable</p>;
   if ('error' in data) return <p data-testid="greeting-state">unavailable</p>;
   return <p data-testid="greeting">{data.message}</p>;
+}
+
+function useMe() {
+  return useQuery({
+    queryKey: ['me'],
+    retry: false,
+    queryFn: async () => {
+      const response = await api.api.me.$get();
+      if (response.status === 401) return null;
+      if (!response.ok) throw new Error('identity unavailable');
+      return response.json();
+    },
+  });
+}
+
+/**
+ * The second observation. Where the greeting proves build, serving, API and
+ * database, this proves a session is created, carried and read - which is the
+ * whole of what makes a pre-wired capability a feature rather than a claim.
+ */
+function Account() {
+  const { data, isPending, isError, refetch } = useMe();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [problem, setProblem] = useState('');
+
+  if (isPending) return <p data-testid="account-state">loading</p>;
+  if (isError) return <p data-testid="account-state">unavailable</p>;
+
+  if (data !== null && 'email' in data) {
+    return (
+      <div className="flex flex-col gap-2">
+        <p data-testid="account-email">{data.email}</p>
+        <p data-testid="account-organisation">{data.organisation.name}</p>
+        <Button
+          size="sm"
+          variant="outline"
+          data-testid="sign-out"
+          onClick={async () => {
+            await authClient.signOut();
+            await refetch();
+          }}
+        >
+          sign out
+        </Button>
+      </div>
+    );
+  }
+
+  const submit = async (mode: 'in' | 'up') => {
+    setProblem('');
+    const result =
+      mode === 'in'
+        ? await authClient.signIn.email({ email, password })
+        : await authClient.signUp.email({ email, password, name: email });
+    if (result.error) {
+      // Shown rather than swallowed: a form that fails silently is the reason
+      // people believe sign-in is broken when their password is wrong.
+      setProblem(result.error.message ?? 'that did not work');
+      return;
+    }
+    await refetch();
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <input
+        className="rounded border px-2 py-1"
+        data-testid="email"
+        placeholder="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+      <input
+        className="rounded border px-2 py-1"
+        data-testid="password"
+        placeholder="password"
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+      <div className="flex gap-2">
+        <Button size="sm" data-testid="sign-in" onClick={() => void submit('in')}>
+          sign in
+        </Button>
+        <Button size="sm" variant="outline" data-testid="sign-up" onClick={() => void submit('up')}>
+          sign up
+        </Button>
+      </div>
+      {problem !== '' && <p data-testid="account-problem">{problem}</p>}
+    </div>
+  );
 }
 
 const rootRoute = createRootRoute({
@@ -55,6 +149,11 @@ const indexRoute = createRoute({
           open by id
         </Button>
       </Link>
+      <Link to="/account">
+        <Button size="sm" variant="outline">
+          account
+        </Button>
+      </Link>
     </Card>
   ),
 });
@@ -78,7 +177,23 @@ const greetingRoute = createRoute({
   },
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, greetingRoute]);
+const accountRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/account',
+  component: () => (
+    <Card className="flex flex-col gap-3">
+      <CardTitle>account</CardTitle>
+      <Account />
+      <Link to="/">
+        <Button size="sm" variant="outline">
+          back
+        </Button>
+      </Link>
+    </Card>
+  ),
+});
+
+const routeTree = rootRoute.addChildren([indexRoute, greetingRoute, accountRoute]);
 
 export const router = createRouter({ routeTree });
 

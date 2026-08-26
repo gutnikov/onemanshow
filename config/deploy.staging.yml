@@ -12,7 +12,7 @@ proxy:
 # somebody to production.
 env:
   clear:
-    SHIP_PUBLIC_HOST: <%= ENV.fetch("SHIP_STAGING_DOMAIN") %>
+    SHIP_PUBLIC_URL: https://<%= ENV.fetch("SHIP_STAGING_DOMAIN") %>
 
 # Hard limits on staging only. Production is left unconstrained: on a shared
 # machine the point is that validation cannot starve what users are using.

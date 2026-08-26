@@ -9,9 +9,11 @@
 
 ## 2. Signing in works
 
-- [ ] 2.1 Wire sign-up and sign-in with email and password, and one secret per environment for signing. Verify locally, then verify the secret is present and non-empty in both environments — a credential declared and blank is a state this pipeline has been bitten by
-- [ ] 2.2 An organisation is created for an account that arrives without one. Verify by signing up and reading the row: the organisation exists and holds exactly that account
-- [ ] 2.3 A page that requires a session and shows who is signed in and which organisation they belong to. Verify that a visitor without a session cannot see its contents
+- [x] 2.1 Wire sign-up and sign-in with email and password, and one secret per environment for signing. Verify locally, then verify the secret is present and non-empty in both environments — a credential declared and blank is a state this pipeline has been bitten by
+- [x] 2.2 An organisation is created for an account that arrives without one. Verify by signing up and reading the row: the organisation exists and holds exactly that account
+- [x] 2.3 A page that requires a session and shows who is signed in and which organisation they belong to. Verify that a visitor without a session cannot see its contents
+
+- [x] 2.4 **Not planned, and found by running it.** The schema had to be regenerated with the current tool: the package named `@better-auth/cli` is deprecated and a minor line behind, and produced a schema missing one field, which the library refused at run time naming exactly which. The current tool needs node 21 or newer, which a local node 20 does not have, so it runs in a container at the project's own version — the same shape as the database client that was older than the server it had to dump. And the adapter needs the schema passed to it explicitly, because the connection is built without one
 
 ## 3. Identity stops being a claim
 
