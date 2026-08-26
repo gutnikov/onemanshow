@@ -33,7 +33,19 @@ git push origin "${head}:main"
 echo "main fast-forwarded to ${head}"
 echo "head=$head" >> "${GITHUB_OUTPUT:-/dev/stdout}"
 
+# The release is dispatched, not left to the push event. A push made with the
+# code host's own workflow token does not raise workflow events - that is how it
+# prevents recursion - so an automated merge cannot trigger a release by pushing.
+# Discovered by watching a merge succeed and no release follow.
+#
+# Dispatching is better than the alternative of pushing with a personal token:
+# the chain is visible in the run list rather than implied, and no additional
+# credential exists to be rotated or leaked. It is bounded by the same thing
+# that bounds the merge - one merge per ticket, and the guards refuse a second.
+gh workflow run "${RELEASE_WORKFLOW:-on-main.yml}" --ref main
+echo "release dispatched for ${head}"
+
 gh issue comment "$TICKET" --body "$(printf '%s' "\
 All six guards held, so \`${head}\` is now main's head — by fast-forward, which means the commit that was validated is the commit on main, unchanged. Nothing was rebuilt, and the artifact promoted to production is the one that passed staging.
 
-The release is running. When it finishes, the observation window opens and stays open until it closes on its own — this ticket stays open for the duration, because a change that is released and not yet closed is precisely what "still under observation" means.")"
+The release was dispatched — a push made with the workflow token does not raise events, which is how the code host prevents recursion, so the release is asked for explicitly rather than implied. When it finishes, the observation window opens and stays open until it closes on its own — this ticket stays open for the duration, because a change that is released and not yet closed is precisely what "still under observation" means.")"

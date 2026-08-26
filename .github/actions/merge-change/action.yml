@@ -7,8 +7,14 @@ inputs:
   ticket:
     description: Ticket number of the change being merged
     required: true
+  release_workflow:
+    description: >
+      Filename of the instance workflow that releases. Dispatched after the
+      merge, because a push made with the workflow token raises no events.
+    required: false
+    default: on-main.yml
   token:
-    description: Token able to push to main and comment on issues
+    description: Token able to push to main, dispatch workflows and comment on issues
     required: true
 outputs:
   head:
@@ -21,6 +27,7 @@ runs:
       shell: sh
       env:
         GH_TOKEN: ${{ inputs.token }}
+        RELEASE_WORKFLOW: ${{ inputs.release_workflow }}
         TICKET: ${{ inputs.ticket }}
         ACTION_PATH: ${{ github.action_path }}
       run: '"$ACTION_PATH/merge-change" "$TICKET"'
