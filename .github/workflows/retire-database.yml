@@ -1,0 +1,99 @@
+# Removes the database that used to run on the machine, once nothing uses it.
+#
+# Deliberately separate from the move and deliberately last. While the
+# accessory exists, pointing a connection string back is the whole of the
+# rollback; after this, it is a restore from a dump. So this refuses unless it
+# can establish that production is not using what it is about to delete.
+name: retire database
+
+on:
+  workflow_call:
+    inputs:
+      host: { required: true, type: string }
+      domain: { required: true, type: string }
+      image: { required: true, type: string }
+      registry_user: { required: true, type: string }
+      host_key: { required: false, type: string, default: "" }
+      destinations:
+        description: Space-separated deploy destinations whose accessory should go
+        required: false
+        type: string
+        default: "staging"
+    secrets:
+      SOPS_AGE_KEY: { required: true }
+      SSH_PRIVATE_KEY: { required: true }
+
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    env:
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+      SHIP_IMAGE: ${{ inputs.image }}
+      SHIP_HOST: ${{ inputs.host }}
+      SHIP_DOMAIN: ${{ inputs.domain }}
+      SHIP_STAGING_DOMAIN: ${{ inputs.domain }}
+      SHIP_REGISTRY_USER: ${{ inputs.registry_user }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: install sops
+        run: |
+          curl -fsSL -o /tmp/sops https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64
+          sudo install -m 0755 /tmp/sops /usr/local/bin/sops
+
+      # The guard. Both values are readable, and neither is a heuristic: the
+      # accessory declares the host it runs on, and production's connection
+      # string names the host it talks to. If they are the same host, deleting
+      # the accessory deletes production's database.
+      - name: production must not be using this database
+        run: |
+          set -eu
+          url="$(sops -d --extract '["DATABASE_URL"]' secrets/prod.yaml)"
+          echo "::add-mask::$url"
+          dbhost="$(printf '%s' "$url" | sed -n 's|.*://[^@]*@\([^:/?]*\).*|\1|p')"
+          [ -n "$dbhost" ] || { echo "::error::could not read the database host out of production's connection string"; exit 1; }
+          echo "production talks to: ${dbhost}"
+          case "$dbhost" in
+            "${{ inputs.host }}" | localhost | 127.0.0.1 | *-db | *_db)
+              echo "::error::production's database still looks like the one on the machine (${dbhost})." \
+                   "Move it first; while this accessory exists, the rollback is a connection string."
+              exit 1 ;;
+          esac
+          # And it has to be alive on that database, or "not using it" might mean
+          # "broken and not using anything".
+          body="$(curl -sS --max-time 20 "https://${{ inputs.domain }}/health" || true)"
+          case "$body" in
+            *'"ready":true'*) echo "production is ready on its own database" ;;
+            *) echo "::error::production is not ready (${body:-no response}); refusing to delete anything"; exit 1 ;;
+          esac
+
+      - uses: gutnikov/onemanshow/.github/actions/ssh-agentless@main
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ inputs.host }}
+          host_key: ${{ inputs.host_key }}
+      - name: read the registry credential
+        run: |
+          set -eu
+          v="$(sops -d --extract '["REGISTRY_TOKEN_RO"]' secrets/prod.yaml)"
+          echo "::add-mask::$v"
+          echo "KAMAL_REGISTRY_PASSWORD=$v" >> "$GITHUB_ENV"
+
+      - name: remove the accessory
+        run: |
+          set -eu
+          for d in ${{ inputs.destinations }}; do
+            echo "== ${d} =="
+            docker run --rm -v "$PWD:/workdir" -v "$HOME/.ssh:/root/.ssh:ro" \
+              -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_STAGING_DOMAIN \
+              -e SHIP_REGISTRY_USER -e KAMAL_REGISTRY_PASSWORD \
+              ghcr.io/basecamp/kamal:v2.12.0 accessory remove db -d "$d" -y
+          done
+
+      # Say what is gone, because after this the rollback is different in kind.
+      - name: what changed about going back
+        run: |
+          echo "The database on the machine is gone. Until now, returning to it"
+          echo "was a connection string; now it is a restore from a dump into a"
+          echo "new database. Check that a dump exists and has been restored at"
+          echo "least once before treating this as recoverable."

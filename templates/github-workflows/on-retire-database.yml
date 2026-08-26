@@ -1,0 +1,25 @@
+# Instance wiring: replace every REPLACE_ME. See this directory's README.
+#
+# Run once, by hand, after the managed database has carried production for long
+# enough to trust. It refuses if production still talks to the database it is
+# about to delete.
+name: retire database
+on:
+  workflow_dispatch:
+    inputs:
+      destinations:
+        description: Space-separated destinations, for example "staging" or "staging production"
+        required: true
+        default: staging
+jobs:
+  retire:
+    uses: gutnikov/onemanshow/.github/workflows/retire-database.yml@main
+    with:
+      host: REPLACE_ME_SERVER_IP
+      domain: REPLACE_ME_PRODUCTION_HOSTNAME
+      image: REPLACE_ME_DOCKERHUB_USER/onemanshow-reference
+      registry_user: REPLACE_ME_DOCKERHUB_USER
+      destinations: ${{ inputs.destinations }}
+      host_key: |
+        REPLACE_ME_KNOWN_HOSTS_LINES
+    secrets: inherit
