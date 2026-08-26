@@ -8,41 +8,45 @@ premises. What remains for the gate is in the proposal's last section.
 Forced first: this change cannot land without it, because merging it would
 deploy a wiring-only commit and then block the next merge on guard 4.
 
-- [ ] 1.1 `merge-change` dispatches the release only when the merged commit touches a deployable path, reading the exclusion list guard 4 already reads rather than keeping a second copy. Verify by merging a wiring-only commit and watching it say it is not releasing, and by confirming production still reports the previous commit
+- [x] 1.1 `merge-change` dispatches the release only when the merged commit touches a deployable path, reading the exclusion list guard 4 already reads rather than keeping a second copy. Verify by merging a wiring-only commit and watching it say it is not releasing, and by confirming production still reports the previous commit **Done.** The predicate was exercised on real commits under a POSIX shell: a commit touching only `secrets/` and `ship.yml` says no release, one touching `e2e/` and `ship/` says release, and a commit git cannot read refuses instead of guessing — three outcomes, not two, because reading a failure to answer as "deployable" is the reading that releases a commit nobody classified
 - [ ] 1.2 Verify the other direction, which is the one that matters: a commit that *does* touch a deployable path still releases. A guard that only ever refuses is indistinguishable from a broken one
 
 ## 2. Approval that means this commit — the cheap version, chosen at the gate
 
-- [ ] 2.1 The approval guard requires that `status:ready-to-release` is **currently** on the ticket, not merely that it once was. Today it reads the timeline alone, so the label being removed changes nothing
+- [x] 2.1 The approval guard requires that `status:ready-to-release` is **currently** on the ticket, not merely that it once was. Today it reads the timeline alone, so the label being removed changes nothing **Done**, and it is the smaller half: the guard now asks whether the label is on the ticket at all, where before it only asked the timeline
 - [ ] 2.2 And that the label event is **newer than the head commit**. That is what closes the known sequence: after a push, the newest approval event is older than the head. **Verify by constructing the failure** — approve, push a commit, let automation drop the label, let revalidation write its mark on the new head, then attempt the merge by hand. Today every guard holds and an unapproved commit ships
 - [ ] 2.3 Verify the event path still works unchanged, since the event stops being the evidence and becomes only the trigger
 - [ ] 2.4 Record the race this leaves: approve and push inside the same second. The commit-scoped mark closes it and is a later change if it ever stops being theoretical
 
 ## 3. The ticket, derived and unambiguous
 
-- [ ] 3.1 The merge derives its ticket, preferring the event's value when present. One in `ready-to-release` proceeds
+- [x] 3.1 The merge derives its ticket, preferring the event's value when present. One in `ready-to-release` proceeds **Done.** Prefers the event's value; derives from the label otherwise. The counting was exercised on none, one and two
 - [ ] 3.2 Two stop, with both numbers named. Verify by putting the label on a second ticket — the hotfix requirement makes this a real state, not a hypothetical
 - [ ] 3.3 None stops, saying so. Verify
 
 ## 4. Manual paths, where argued
 
-- [ ] 4.1 `on-ready-to-release` and `template-ci` gain `workflow_dispatch`, in the instance and in the stub templates both
+- [x] 4.1 `on-ready-to-release` and `template-ci` gain `workflow_dispatch`, in the instance and in the stub templates both **Done**, in the instance and in both stub templates, plus the template's own CI — which had no dispatch trigger at all and is the required check on this very pull request
 - [ ] 4.2 Exercise each by hand once, and judge it by the lines the stage prints, never by the run being green — a skipped job is green, which is exactly how this stage would have lied if the trigger had been added alone
-- [ ] 4.3 `on-pr-closed` and `on-liveness` do not get one, and the reasons are written where a reader will find them: abandoning closes a ticket, which only a person may do, and the closing of the pull request is the decision that makes automation's closure legitimate; liveness records an observation from outside, and typing one by hand is fabricating evidence rather than operating the pipeline
-- [ ] 4.4 Note the trap found while arguing 4.3: `abandon.yml` gates on `github.event.pull_request.merged == false`, and under a dispatch that field is absent, which the expression treats as false — so the guard passes and the run dies later with an empty branch. Loud, but for the wrong reason
+- [x] 4.3 `on-pr-closed` and `on-liveness` do not get one, and the reasons are written where a reader will find them: abandoning closes a ticket, which only a person may do, and the closing of the pull request is the decision that makes automation's closure legitimate; liveness records an observation from outside, and typing one by hand is fabricating evidence rather than operating the pipeline **Done**, and in code rather than prose: the checker holds the two exceptions with their reasons and asserts both directions, so a dispatch trigger appearing on either of them is a failure
+- [x] 4.4 Note the trap found while arguing 4.3: `abandon.yml` gates on `github.event.pull_request.merged == false`, and under a dispatch that field is absent, which the expression treats as false — so the guard passes and the run dies later with an empty branch. Loud, but for the wrong reason **Recorded.**
 
 ## 5. Telling a person a change is stuck
 
-- [ ] 5.1 The window check gains one listing: a ticket has held `ready-to-release` longer than the window with no merge run since the label event. It reports and does not act
-- [ ] 5.2 Verify it fires, by leaving a ticket in that state on purpose. Verify it stays quiet otherwise, which is the half that is easy to skip
+- [x] 5.1 The window check gains one listing: a ticket has held `ready-to-release` longer than the window with no merge run since the label event. It reports and does not act **Done.**
+- [x] 5.2 Verify it fires, by leaving a ticket in that state on purpose. Verify it stays quiet otherwise, which is the half that is easy to skip **Done.** Exercised against the real script with a stubbed code host: it speaks for an approval 76 minutes old and stays silent for a fresh one
 
 ## 6. Parity that something enforces
 
-- [ ] 6.1 `check-instance-stubs.py` compares triggers, not only `with:` keys and the `uses:` target. Verify against the drift that already exists — the instance's `on-pr` carries a dispatch trigger and the stub template it came from does not — and fix that drift
-- [ ] 6.2 A stage deliberately without a manual path is named in an exception list in the checker, so the spec's "the reason is written down" is asserted rather than hoped for
+- [x] 6.1 `check-instance-stubs.py` compares triggers, not only `with:` keys and the `uses:` target. Verify against the drift that already exists — the instance's `on-pr` carries a dispatch trigger and the stub template it came from does not — and fix that drift **Done.** The checker found exactly two stubs without a manual path — `on-pr`, drifted from the instance long before today, and `on-ready-to-release` — and the other ten already had one. Better than my guess, which was that most lacked it
+- [x] 6.2 A stage deliberately without a manual path is named in an exception list in the checker, so the spec's "the reason is written down" is asserted rather than hoped for **Done.**
 
 ## 7. The rehearsal, deliberately and before this merges
 
 - [ ] 7.1 `smoke-signs-in` 3.2: with a knowingly wrong credential in `secrets/ci.yaml`, dispatch a release against today's head and confirm the pre-deploy probe stops it — nothing migrated, nothing deployed, nothing rolled back, and the ticket told production is untouched **because that is what happened**
 - [ ] 7.2 Restore the credential and confirm a release passes both probes again
 - [ ] 7.3 Record the price honestly: two reconfigure deploys of an unchanged version, and a `blocked:rollback` label on a closed ticket, removed afterwards with the thread told it was staged
+
+## 8. Found by wasting a validation
+
+- [x] 8.1 **My own mistake, and the pipeline let it cost a full staging run.** I cut this change's branch from a stale local `main`, so the tree was missing the previous change's work: validation passed with eleven tests where twelve exist, and the eleven were the wrong eleven. Merge guard 5 would have caught it — a head main is not an ancestor of cannot be fast-forwarded — but only after the stand had been deployed, reset, seeded and exercised. The check now runs at the start of validation instead, with the remedy named. Verified in both directions on the two real commits: the rebased head passes, the stale one is refused

@@ -39,11 +39,34 @@ jobs:
       SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
       SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
+      # Full history: the ancestry check below cannot be answered by a shallow
+      # clone, and answering it wrongly would be worse than not asking.
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
       # The commit under review, published so the next job promotes the thing
       # that was validated rather than whatever the branch points at by then.
       - id: commit
         run: echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      # Asked here rather than only at the merge. The merge takes fast-forwards
+      # only - the artifact exists for the validated commit and no other - so a
+      # head that main is not an ancestor of cannot be merged whatever the tests
+      # say. Learning that after a full staging run costs the run, the stand and
+      # somebody's attention, and it cost exactly that once: a branch cut from a
+      # stale local main validated a tree that was missing another change's
+      # work, and the eleven tests that passed were the wrong eleven.
+      - name: main must be an ancestor of this head
+        run: |
+          set -eu
+          git fetch -q origin main
+          if git merge-base --is-ancestor origin/main "$SHA"; then
+            echo "main is an ancestor of ${SHA} - a fast-forward is possible"
+          else
+            echo "::error::main is not an ancestor of ${SHA}: either it moved on," \
+                 "or this branch was cut from an older main. Validating it would prove" \
+                 "something about a tree that cannot be merged. Rebase onto main and push again."
+            exit 1
+          fi
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
