@@ -55,19 +55,27 @@ The change's own migration SHALL then be applied **before** the image that requi
 - **THEN** the migration precedes the deploy there too, because two stages of one pipeline disagreeing about the order is a defect only a non-backward-compatible migration would reveal
 
 ### Requirement: Reset precedes every use of staging
-The pipeline SHALL reset staging before each automated verification attempt and again before handing the environment to a human, so that neither ever observes the residue of a previous run. Since validation comprises two runs with different data, staging is reset three times in a normal pass: for the baseline, between the two runs, and for the handover.
+The pipeline SHALL give staging a database with no residue before each automated verification attempt and again before handing the environment to a human, so that neither ever observes the by-products of a previous run. Since validation comprises two runs with different data, staging is given a clean database three times in a normal pass: for the baseline, between the two runs, and for the handover.
+
+Where the provider supports it, this SHALL be done by creating a database rather than by emptying one. Creating leaves nothing to verify: a database that has just been created cannot contain residue, whereas emptying one requires proving that the emptying happened — and the code that proved it here removed a named volume while the data lived in a bind mount, so for an entire run it destroyed nothing and reported success.
+
+The data SHALL remain synthetic. A provider's branch of production would be cheaper and would put real user data where a browser and a test suite can reach it; the seeded fixture is chosen deliberately over that.
 
 #### Scenario: A verification attempt is retried
 - **WHEN** `ship/e2e` failed and is attempted again on the same commit
-- **THEN** staging is reset before the retry, so the retry does not run against the wreckage of the failed attempt
+- **THEN** staging has a fresh database before the retry, so the retry does not run against the wreckage of the failed attempt
 
 #### Scenario: Between the two verification runs
 - **WHEN** the migration-safety run has finished and the end-to-end suite is about to start
-- **THEN** staging is reset and seeded at the change's own commit, so the suite sees the fixtures it was written against rather than production's data
+- **THEN** staging is given a clean database and seeded at the change's own commit, so the suite sees the fixtures it was written against
 
 #### Scenario: Handover to a human
 - **WHEN** automated verification has passed and the change is handed over for review
-- **THEN** staging has been reset and seeded, so the reviewer sees predictable synthetic data rather than the by-products of the test run
+- **THEN** staging holds freshly seeded synthetic data, so the reviewer sees predictable values rather than the by-products of the test run
+
+#### Scenario: The clean database is created rather than emptied
+- **WHEN** staging is prepared
+- **THEN** a database is created for this validation, so there is no emptying to confirm and no residue that could survive it
 
 ### Requirement: Migration safety and feature correctness are verified separately
 Validating a change on staging SHALL answer two questions in two runs, because one run cannot answer both. Against the baseline derived from production — production's schema and production's data with the change's migration applied on top — the pipeline SHALL run only the content-agnostic smoke set, because the data present is deliberately not the data the change's fixtures describe. It SHALL then reset, seed at the change's own commit, and run the full end-to-end suite.
@@ -89,27 +97,6 @@ Every step described as being at the change's commit SHALL execute code checked 
 #### Scenario: A change that moves a fixture is actually exercised
 - **WHEN** a change alters both the value `ship/seed` writes and the expectation the suite asserts
 - **THEN** the stand serves the change's new value, so an arrangement that ran the default branch's code for both — reporting green while the stand still served the old value — SHALL fail instead
-
-### Requirement: Reset must not be able to reach production
-The reset operation SHALL act only on a target whose identity marks it as the staging data plane, and SHALL refuse to act on any other target. Staging and production SHALL NOT share a database instance or a storage volume, so that resetting is the destruction of a separate volume rather than a command issued against a server that also serves production.
-
-Separation of storage is what this requirement guarantees. It does NOT guarantee network unreachability: where both environments run on one machine they may share a container network, in which case one environment can open a TCP connection to the other's database and is stopped only by not holding its credentials. Each environment SHALL therefore have its own database credentials, and the weaker guarantee SHALL be stated wherever the stronger one might be assumed.
-
-#### Scenario: One environment reaches for the other's database
-- **WHEN** a process in the staging environment opens a connection to the production database on a shared machine
-- **THEN** the connection may be established at the transport level but authentication fails, because the environments hold distinct credentials
-
-#### Scenario: Reset confirms it destroyed something
-- **WHEN** the reset operation completes
-- **THEN** it has verified that the data it was meant to destroy is gone, because a destructive step that cannot confirm its effect is indistinguishable from one that did nothing
-
-#### Scenario: Reset discovers where the data lives
-- **WHEN** the reset operation runs
-- **THEN** it determines the storage location from the running environment rather than assuming a storage shape, and refuses if the location it finds does not identify itself as staging
-
-#### Scenario: Reset is pointed at a non-staging target
-- **WHEN** the reset operation is invoked with a target that does not match the staging identity
-- **THEN** it refuses and performs no destructive action
 
 ### Requirement: Every environment is reachable at its own host name
 Each environment SHALL be reachable at a host name distinct from every other environment's, because a single machine hosting several environments distinguishes them by the requested host. A bare IP address SHALL NOT be used as an environment's address, since it cannot distinguish environments and cannot carry a certificate.
@@ -218,3 +205,64 @@ Stepping back an image restores the artifact and nothing else. Configuration is 
 #### Scenario: Automation does not fix its own fix
 - **WHEN** the change being rolled back is itself a rollback
 - **THEN** no further automatic rollback is generated and a human is required
+
+### Requirement: Recovery covers two different losses
+The project SHALL hold two independent means of recovery, because the two failures they answer are not substitutes.
+
+The **provider's** point-in-time recovery answers "the wrong statement ran": it is fast, fine-grained, and its retention is whatever the plan gives. It does not answer the loss of the provider account itself.
+
+An **exported dump** answers "an account is gone". It is coarse and slow and it survives what nothing else survives. It SHALL be written outside the accounts that hold the repository and the database, and the residual loss it does not cover SHALL be named rather than left to be assumed covered.
+
+Neither SHALL be presented as covering the other. A single mechanism SHALL NOT be described as "the backup" when the failure it cannot address is the one that ends the project.
+
+Four properties are required of the dump, and each of them exists because its absence has a specific failure:
+
+- **Encrypted to the project's own recipients**, and **verified by content**. A plaintext dump of production sitting where the application is served is worse than no dump. Checking that a file still parses is not checking that it is encrypted; that mistake has already been made here, and the dump it produced was reported as encrypted while it was not.
+- **A retention limit, enforced when writing.** Backups that fill a disk are a common cause of outage, and here it would be a copy that exists to survive a failure causing one. On a small machine this is not theoretical.
+- **Unreadable by the application.** Otherwise a flaw in the application yields the whole history of the database rather than its current state.
+- **Reported on every run, including runs with nothing to say.** A backup that has silently stopped is indistinguishable from one that is working.
+
+#### Scenario: The dump lives on the machine that serves the application
+- **WHEN** the dump is stored on the host that runs production, and the database is managed elsewhere
+- **THEN** the arrangement satisfies this requirement for the two losses it covers, and the loss it does not cover — the host's own provider — is stated, because destroying the data would then require two unrelated providers failing at once while the host itself is the cheap thing to rebuild
+
+#### Scenario: A statement destroyed data
+- **WHEN** data is lost to a mistake and the loss is recent
+- **THEN** the provider's recovery restores it, without the coarse dump being involved
+
+#### Scenario: The provider account is lost
+- **WHEN** access to the database provider is gone
+- **THEN** the exported dump is reachable from an unrelated account and is what the project is rebuilt from
+
+#### Scenario: The two live in one account
+- **WHEN** the dump is written to the same account that holds the repository and the deploy credentials
+- **THEN** that arrangement does not satisfy this requirement, because one loss takes both
+
+#### Scenario: The dump is checked
+- **WHEN** an export completes
+- **THEN** its content is inspected for what it should and should not contain, rather than the job's exit status being taken as proof
+
+### Requirement: Staging cannot reach production
+Staging and production SHALL NOT share a database instance, so that preparing one is an operation on the other's peer rather than a destructive command against something that also serves production.
+
+**The boundary is credentials and a named target, not the network, and that SHALL be stated rather than implied.** A managed provider's endpoints are publicly resolvable and accept connections from anywhere: production's database host was reached over TCP from an unrelated machine while this was being written. Nothing about moving off a shared host produced network isolation, and a requirement that implied otherwise would be believed.
+
+What the arrangement does give: each environment holds only its own credentials, so a process in one cannot authenticate to the other's database; and the operations that create and empty staging are scoped to a project identifier that comes from configuration rather than from anything derived at run time, so production's is not a value they could arrive at.
+
+The credential used for those operations SHALL be as narrow as the provider allows. Where it is account-wide — able to see and delete every project rather than the one it is for — that breadth SHALL be recorded as a weakness rather than left unexamined, because it is the one thing that could name production's database by mistake.
+
+#### Scenario: Staging is prepared
+- **WHEN** the pipeline prepares staging
+- **THEN** it acts on the project named in configuration, and production's project is not a value it computes
+
+#### Scenario: One environment reaches for the other's database
+- **WHEN** a process in the staging environment attempts to connect to production's database
+- **THEN** the connection is established at the transport level, because the endpoint is public, and authentication fails because it holds no credentials for it
+
+#### Scenario: Someone assumes the environments are network-isolated
+- **WHEN** an argument depends on staging being unable to reach production's database at all
+- **THEN** that argument is unsound, and the reachability is a fact of the provider rather than something this pipeline can change on the plans it targets
+
+#### Scenario: Preparation is pointed at a target that is not staging
+- **WHEN** the preparation step is given a target that does not identify itself as staging
+- **THEN** it refuses and performs no destructive action

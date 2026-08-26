@@ -17,33 +17,39 @@ The reference application SHALL serve one page that displays a value it obtained
 - **THEN** exactly one image contains both the API and the built frontend assets
 
 ### Requirement: Readiness endpoint reflects real readiness
-The application SHALL expose `/health`, which SHALL return a 2xx response only when the application can actually serve requests, including that its database is reachable and that its schema and its code agree. Drift SHALL be detected in **both** directions: a schema behind the code and a schema ahead of it are each a non-ready state. It SHALL NOT return a static success.
+The application SHALL expose a readiness endpoint which SHALL return a 2xx response only when the application can actually serve requests, including that its database is reachable and that its schema and its code agree. Drift SHALL be detected in **both** directions: a schema behind the code and a schema ahead of it are each a non-ready state. It SHALL NOT return a static success.
 
-The response SHALL also carry the commit this build was deployed as, so the pipeline can ask production what it is running. It is reported on the readiness endpoint rather than one of its own because a caller that wants the identity always wants to know whether the thing is alive as well, and two endpoints would let those answers disagree.
+It SHALL be separate from the liveness endpoint, which reports that the process is serving and which commit it is, and touches no database. Readiness is asked at deploy time and by verification; liveness is what may be polled often.
+
+Both endpoints SHALL carry the commit this build was deployed as. On liveness because that is where callers can reach it when the application is unhealthy; on readiness because a caller holding one response should not have to make a second request to learn what answered.
 
 #### Scenario: Database unreachable
 - **WHEN** the application is running but cannot reach its database
-- **THEN** `/health` returns a non-2xx response
+- **THEN** readiness returns a non-2xx response
 
 #### Scenario: Migrations not applied
 - **WHEN** the application is running against a database whose schema is behind the application's expectations
-- **THEN** `/health` returns a non-2xx response
+- **THEN** readiness returns a non-2xx response
 
 #### Scenario: Schema ahead of the code
 - **WHEN** the application is running against a database whose schema has moved past what this build expects, which is the state a rollback leaves behind
-- **THEN** `/health` returns a non-2xx response, so the external liveness check goes red during exactly the incident it exists to catch
+- **THEN** readiness returns a non-2xx response, and the release refuses to call the deploy healthy
 
 #### Scenario: Fully ready
 - **WHEN** the application can serve requests and its schema is current
-- **THEN** `/health` returns 2xx
+- **THEN** readiness returns 2xx
 
 #### Scenario: The response identifies the build
-- **WHEN** `/health` is requested, ready or not
-- **THEN** it carries the commit this build was deployed as, taken from what the deploy tool supplied, so an unhealthy production can still be identified
+- **WHEN** either endpoint is requested, ready or not
+- **THEN** it carries the commit this build was deployed as, taken from what the deploy tool supplied
 
 #### Scenario: Nothing supplied an identity
 - **WHEN** the application runs outside a deploy, with no version supplied
 - **THEN** the field is absent rather than invented, so a caller can tell "not deployed" from a mismatch
+
+#### Scenario: Liveness is asked while the database sleeps
+- **WHEN** the liveness endpoint is polled and the database has scaled to zero
+- **THEN** it answers without waking it
 
 ### Requirement: A smoke subset of the end-to-end tests
 The reference application SHALL mark a subset of its end-to-end tests as the smoke set, and `ship/smoke` SHALL run only that subset. The smoke set SHALL exercise real user-visible paths rather than only a health check, and SHALL be free of mutations.
