@@ -5,13 +5,15 @@
 #
 # It runs off the machine on purpose. A cron on the box fails into the void; a
 # scheduled workflow that stops working is visible.
+#
+# It no longer reaches the machine at all: the database is managed, so there is
+# no tunnel, no ssh key, and no host to name. The address the application uses is
+# the address this dumps - one value rather than two that have to agree.
 name: backup
 
 on:
   workflow_call:
     inputs:
-      host: { required: true, type: string }
-      host_key: { required: false, type: string, default: "" }
       known_row_query:
         description: SQL returning one known value from a restored dump, used to prove the restore worked
         required: false
@@ -19,7 +21,6 @@ on:
         default: "select count(*)::text from greeting"
     secrets:
       SOPS_AGE_KEY: { required: true }
-      SSH_PRIVATE_KEY: { required: true }
 
 jobs:
   dump:
@@ -27,7 +28,7 @@ jobs:
     permissions: { contents: read }
     services:
       scratch:
-        image: postgres:17-alpine
+        image: postgres:18-alpine
         env:
           POSTGRES_USER: scratch
           POSTGRES_PASSWORD: scratch
@@ -48,28 +49,22 @@ jobs:
             | tar -xz -C /tmp
           sudo install -m 0755 /tmp/age/age /usr/local/bin/age
 
-      - uses: gutnikov/onemanshow/.github/actions/ssh-agentless@main
-        with:
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          host: ${{ inputs.host }}
-          host_key: ${{ inputs.host_key }}
 
       - name: read production credentials
         run: |
           set -eu
-          v="$(sops -d --extract '["DATABASE_URL_TUNNEL"]' secrets/prod.yaml)"
+          v="$(sops -d --extract '["DATABASE_URL"]' secrets/prod.yaml)"
           echo "::add-mask::$v"
-          echo "DATABASE_URL_TUNNEL=$v" >> "$GITHUB_ENV"
+          echo "DATABASE_URL=$v" >> "$GITHUB_ENV"
 
-      - name: dump production through a tunnel
+      - name: dump production
         run: |
           set -eu
-          ssh -f -N -L 5432:localhost:5432 "root@${{ inputs.host }}"
           # The client comes from the same image as the server, so the versions
           # match by construction. A distribution's postgresql-client trails the
           # server and pg_dump refuses to dump a newer one at all.
-          docker run --rm --network host -e PGURL="$DATABASE_URL_TUNNEL" \
-            postgres:17-alpine \
+          docker run --rm --network host -e PGURL="$DATABASE_URL" \
+            postgres:18-alpine \
             sh -c 'pg_dump --no-owner --no-privileges --format=plain "$PGURL"' > /tmp/backup.sql
           bytes="$(wc -c < /tmp/backup.sql)"
           echo "dump is $bytes bytes"
@@ -91,9 +86,9 @@ jobs:
         run: |
           set -eu
           docker run --rm --network host -e PGURL="$SCRATCH" -v /tmp/backup.sql:/backup.sql:ro \
-            postgres:17-alpine sh -c 'psql -q -f /backup.sql "$PGURL"'
+            postgres:18-alpine sh -c 'psql -q -f /backup.sql "$PGURL"'
           value="$(docker run --rm --network host -e PGURL="$SCRATCH" -e Q="$KNOWN_ROW_QUERY" \
-            postgres:17-alpine sh -c 'psql -t -A -c "$Q" "$PGURL"')"
+            postgres:18-alpine sh -c 'psql -t -A -c "$Q" "$PGURL"')"
           echo "known row reads back as: $value"
           if [ -z "$value" ]; then
             echo "::error::The dump restored but the known row is missing, so the backup is not usable."

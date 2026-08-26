@@ -76,7 +76,6 @@ jobs:
           read_secret REGISTRY_TOKEN_RO KAMAL_REGISTRY_PASSWORD
           read_secret DATABASE_URL DATABASE_URL
           read_secret POSTGRES_PASSWORD POSTGRES_PASSWORD
-          read_secret DATABASE_URL_TUNNEL DATABASE_URL_TUNNEL
           read_secret SENTRY_DSN SENTRY_DSN
 
       # Fail rather than rebuild: recovering by rebuilding would deploy an
@@ -109,10 +108,11 @@ jobs:
         with:
           health_url: https://${{ inputs.domain }}/alive
 
+      # No tunnel. The database is not on the machine, so the address the
+      # application uses is the address migrations use - one value instead of
+      # two that have to agree, and they did once drift.
       - name: migrate production
-        run: |
-          ssh -f -N -L 5432:localhost:5432 "root@${{ inputs.host }}"
-          DATABASE_URL="$DATABASE_URL_TUNNEL" ./ship/migrate
+        run: ./ship/migrate
 
       - name: deploy
         uses: gutnikov/onemanshow/.github/actions/kamal@main
