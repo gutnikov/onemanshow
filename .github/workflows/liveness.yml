@@ -1,0 +1,21 @@
+# An outage signalled from outside, by whatever watches the machine from
+# somewhere the machine cannot take down with it.
+name: liveness
+on:
+  workflow_call:
+    secrets: {}
+jobs:
+  signal:
+    runs-on: ubuntu-latest
+    permissions: { issues: write, contents: read }
+    steps:
+      - uses: actions/checkout@v4
+      # Named fields, taken one at a time. Passing the payload through would
+      # give an outside service the ability to write into the thread the agent
+      # reads, which is the ability to write instructions to it.
+      - uses: gutnikov/onemanshow/.github/actions/liveness-signal@main
+        with:
+          status: ${{ github.event.client_payload.status }}
+          code: ${{ github.event.client_payload.code }}
+          at: ${{ github.event.client_payload.at }}
+          token: ${{ github.token }}

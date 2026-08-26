@@ -1,0 +1,48 @@
+#!/bin/sh
+# An outage reported by the external monitor, arriving as an inbound dispatch.
+#
+# Only whitelisted fields are read. A monitor that can put arbitrary text into
+# the thread can put instructions there, and the thread is what the agent reads
+# as context - so a payload is data, never prose to reproduce.
+set -eu
+
+STATUS="$(printf '%s' "${SIGNAL_STATUS:-}" | tr -cd 'a-zA-Z0-9_-' | cut -c1-32)"
+CODE="$(printf '%s' "${SIGNAL_CODE:-}" | tr -cd '0-9' | cut -c1-3)"
+AT="$(printf '%s' "${SIGNAL_AT:-}" | tr -cd '0-9TZ:-' | cut -c1-32)"
+
+if [ -z "$STATUS" ]; then
+  echo "::error::the signal carried no status field, so there is nothing to act on"
+  exit 1
+fi
+
+echo "signal: status=${STATUS} code=${CODE:-none} at=${AT:-unstated}"
+
+case "$STATUS" in
+  down|failed|error) : ;;
+  up|recovered|ok)
+    echo "a recovery signal - recorded and nothing else, because recovery is not a decision"
+    exit 0
+    ;;
+  *)
+    echo "::error::unrecognised status '${STATUS}' - refusing to interpret it"
+    exit 1
+    ;;
+esac
+
+ticket="$(gh issue list --state open --label status:released --json number -q 'first | .number' 2>/dev/null || true)"
+if [ -z "$ticket" ] || [ "$ticket" = null ]; then
+  echo "no change is under observation - an outage with nothing in flight is not attributable to a change"
+  echo "::warning::production reported ${STATUS} at ${AT:-an unstated time} with no change under observation"
+  exit 0
+fi
+
+gh issue edit "$ticket" --add-label blocked:rollback
+gh issue comment "$ticket" --body "$(printf '%s' "\
+## The external monitor reports production down
+
+Status \`${STATUS}\`${CODE:+, HTTP ${CODE}}${AT:+, at ${AT}}. Those three fields are all that is read from the signal — a monitor able to put free text here could put instructions here, and this thread is what the agent reads as context.
+
+Marked \`blocked:rollback\`. **Nothing has been rolled back.** Rewinding the artifact restores neither the configuration nor the schema, and if this change's migration has run the previous image may not work against the schema it finds — which makes stepping back a cascade rather than a fix.
+
+This change is the one under observation, so it is the one that can have caused this. That is the whole point of one change at a time.")"
+echo "ticket #${ticket}: blocked:rollback from an external signal"

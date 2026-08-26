@@ -1,8 +1,15 @@
 # Instance wiring: no placeholders. See this directory's README.
 #
-# Every ten minutes. The window's own length lives in ship.yml; this only
-# decides how often the question is asked, and asking more often than the
-# window is long is what keeps lateness small.
+# The window's own length lives in ship.yml; this only decides how often the
+# question is asked.
+#
+# Asked for every ten minutes and **do not expect ten minutes**. Observed on a
+# quiet repository: runs at 03:19, 04:08, 04:55 - about every 45 minutes. The
+# scheduler deprioritises low-activity repositories and the expression is a
+# floor, not a promise. So a window closes late by up to that interval, which is
+# a cost worth knowing rather than a bug worth chasing: the check is derived, so
+# a late run closes the window correctly, just later than the configuration
+# reads. Anything that must be prompt cannot rely on this.
 name: on schedule
 on:
   schedule:

@@ -1,0 +1,32 @@
+name: liveness signal
+description: >
+  Records an outage reported by an external monitor and blocks the change under
+  observation. Reads only whitelisted fields: a monitor that can put arbitrary
+  text into the thread can put instructions there, and the thread is what the
+  agent reads as context.
+inputs:
+  status:
+    description: The monitor's status word. Anything unrecognised is refused rather than interpreted.
+    required: true
+  code:
+    description: HTTP status code, digits only
+    required: false
+    default: ""
+  at:
+    description: When the monitor observed it
+    required: false
+    default: ""
+  token:
+    description: Token able to edit and comment on issues
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: sh
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        SIGNAL_STATUS: ${{ inputs.status }}
+        SIGNAL_CODE: ${{ inputs.code }}
+        SIGNAL_AT: ${{ inputs.at }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: '"$ACTION_PATH/liveness-signal"'
