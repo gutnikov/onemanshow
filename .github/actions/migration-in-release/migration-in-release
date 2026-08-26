@@ -1,0 +1,35 @@
+#!/bin/sh
+# Did this release add migrations relative to what production was running?
+#
+# Derived from the two commits, not from a new output contract on the migrate
+# hook. The question is not "did migrate run" - it runs every release - but
+# "does the schema now differ from what the previous image expects", and that is
+# exactly what the diff between the two commits says.
+#
+# It decides whether an automatic rollback is safe. Rewinding the image after a
+# migration leaves old code against a schema that has moved on, which readiness
+# reports as schema-ahead and refuses to call healthy - so the rollback would
+# fail its own health check and produce a second failure instead of a recovery.
+set -eu
+
+FROM="${1:?usage: migration-in-release <previous-production-commit> <release-commit>}"
+TO="${2:?}"
+DIR="${MIGRATIONS_DIR:-db/migrations}"
+
+if ! git cat-file -e "${FROM}^{commit}" 2>/dev/null; then
+  # Cannot compare, so cannot claim it is safe. The same rule as everywhere:
+  # unknown is not a negative answer.
+  echo "::warning::${FROM} is not in this repository's history, so whether a migration was added cannot be determined"
+  echo "migrated=unknown" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+  exit 0
+fi
+
+changed="$(git diff --name-only "$FROM" "$TO" -- "$DIR" | head -20)"
+if [ -z "$changed" ]; then
+  echo "no migration files changed between ${FROM} and ${TO}"
+  echo "migrated=no" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+else
+  echo "migration files changed between ${FROM} and ${TO}:"
+  printf '  %s\n' "$changed"
+  echo "migrated=yes" >> "${GITHUB_OUTPUT:-/dev/stdout}"
+fi

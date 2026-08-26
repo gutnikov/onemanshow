@@ -1,0 +1,32 @@
+name: migration in release
+description: >
+  Whether this release adds migrations relative to what production was running.
+  Decides whether an automatic rollback is safe: rewinding the image after a
+  migration leaves old code against a schema that has moved on, which readiness
+  refuses to call healthy, so the rollback fails its own health check.
+inputs:
+  from:
+    description: The commit production was running before this release
+    required: true
+  to:
+    description: The commit being released
+    required: true
+  migrations_dir:
+    description: Directory holding migration files
+    required: false
+    default: db/migrations
+outputs:
+  migrated:
+    description: yes, no, or unknown when the comparison cannot be made
+    value: ${{ steps.compare.outputs.migrated }}
+runs:
+  using: composite
+  steps:
+    - id: compare
+      shell: sh
+      env:
+        MIGRATIONS_DIR: ${{ inputs.migrations_dir }}
+        FROM: ${{ inputs.from }}
+        TO: ${{ inputs.to }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: '"$ACTION_PATH/migration-in-release" "$FROM" "$TO"'

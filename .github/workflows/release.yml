@@ -90,6 +90,18 @@ jobs:
             "${{ inputs.image }}:${{ inputs.sha }}-production" > /dev/null
           echo "promoting ${{ inputs.sha }}-production"
 
+      # Read before anything changes. After the deploy this answers about the
+      # new image, and the question is what production was running BEFORE - the
+      # image an automatic rollback would return to.
+      - id: before
+        continue-on-error: true
+        run: |
+          set -eu
+          v="$(.github/actions/production-commit/production-commit \
+                 "https://${{ inputs.domain }}/health" || true)"
+          echo "sha=$v" >> "$GITHUB_OUTPUT"
+          echo "production was running: ${v:-unknown}"
+
       - name: migrate production
         run: |
           ssh -f -N -L 5432:localhost:5432 "root@${{ inputs.host }}"
@@ -106,12 +118,38 @@ jobs:
         uses: gutnikov/onemanshow/.github/actions/run-hook@main
         with: { name: smoke }
 
-      - name: roll back, once, if production is not healthy
+      # Whether rewinding the image is a recovery or a second failure.
+      #
+      # Migrations run before the deploy, so after a release that added one the
+      # schema has already moved. Rewinding the image then leaves old code
+      # against a newer schema, which readiness reports as schema-ahead and
+      # refuses to call healthy - the rollback fails its own health check and
+      # production ends up broken in a second way rather than restored.
+      #
+      # So the rollback is automatic exactly where it is safe, and a person is
+      # called exactly where it is not. Unknown counts as not safe.
+      - id: migrated
         if: steps.smoke.outcome == 'failure'
+        uses: gutnikov/onemanshow/.github/actions/migration-in-release@main
+        with:
+          from: ${{ steps.before.outputs.sha }}
+          to: ${{ inputs.sha }}
+
+      - name: roll back, once, if production is not healthy and no schema moved
+        if: steps.smoke.outcome == 'failure' && steps.migrated.outputs.migrated == 'no'
         uses: gutnikov/onemanshow/.github/actions/rollback@main
         with:
           url: "https://${{ inputs.domain }}"
           service: ${{ inputs.service }}
+
+      - name: why the rollback was not attempted
+        if: steps.smoke.outcome == 'failure' && steps.migrated.outputs.migrated != 'no'
+        run: |
+          echo "::error::Smoke failed and this release ${{ steps.migrated.outputs.migrated == 'yes' && 'applied a migration' || 'may have applied a migration - it could not be determined' }}." \
+               "Rewinding the image would leave the previous code against a schema that has moved on," \
+               "which readiness refuses to call healthy - so it would fail its own health check and add" \
+               "a second failure rather than restore anything. A person has to decide: forward-fix, or" \
+               "roll the schema back too. The change is marked blocked:rollback."
 
       - name: report the incident
         if: steps.smoke.outcome == 'failure'

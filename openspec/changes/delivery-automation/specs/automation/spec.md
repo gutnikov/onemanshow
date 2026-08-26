@@ -54,3 +54,22 @@ The archived design named a workflow-automation tool for four events. Three of t
 #### Scenario: The window elapses while nothing is listening
 - **WHEN** the observation window's duration passes
 - **THEN** a scheduled run notices from the derived state, rather than a process having had to stay alive to hold a timer
+
+### Requirement: An automatic rollback only where rewinding the artifact is a recovery
+When the post-deploy smoke fails, automation SHALL roll production back one step **only if** the release did not change the schema. Where it did — or where that cannot be determined — automation SHALL mark the change blocked and roll nothing back.
+
+The migration runs before the deploy, so after a release that added one the schema has already moved. Rewinding the image then leaves the previous code against a newer schema, which readiness reports as not ready — so the rollback fails its own health check and production ends up broken a second way rather than restored. An automatic rollback there is not a cautious default; it is a second outage.
+
+Whether the schema moved SHALL be derived by comparing the commit production was running against the commit being released, read before the deploy changes the answer.
+
+#### Scenario: Smoke fails on a change with no migration
+- **WHEN** the post-deploy smoke fails and no migration files differ between the two commits
+- **THEN** production is rolled back one step automatically, and a person is called rather than a second step being taken
+
+#### Scenario: Smoke fails on a change that migrated
+- **WHEN** the post-deploy smoke fails and the release changed the schema
+- **THEN** nothing is rolled back, the change is marked blocked, and the note says why — the choice between forward-fixing and rolling the schema back is a person's
+
+#### Scenario: What production was running cannot be established
+- **WHEN** production does not report its commit, so the comparison cannot be made
+- **THEN** the rollback is not attempted, because unknown is not an answer that permits a destructive action
