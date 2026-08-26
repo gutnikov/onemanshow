@@ -78,3 +78,24 @@ The synthetic account's credentials SHALL be a secret like any other, and its ex
 #### Scenario: The suite goes further than smoke
 - **WHEN** the end-to-end suite runs against the stand
 - **THEN** it exercises signing up, organisation scoping and whatever else requires writing, because the stand is seeded and its residue is discarded
+
+### Requirement: Repeated sign-in attempts are refused
+Sign-in SHALL be throttled per client address. The library's own default is three attempts per ten seconds for anything under `/sign-in`, counted per address and per path, and it counts refused attempts — which is the point, since guessing is what it defends against. It is active whenever the application runs as production, so it is active on the stand as well as in production.
+
+The throttle SHALL NOT be relaxed to make tests pass. A suite that signs in more often than a visitor plausibly would SHALL respect the limit by construction — spending the allowance deliberately, waiting when it is gone, and reusing a session wherever the test is not itself about signing in. This is written down because the first version of the suite signed in six times in ten seconds and was therefore never reliably green; the failure looked like a flake, then like contention, then like broken organisation scoping, and was none of those.
+
+The limit SHALL be asserted by a test. Nothing else notices when a defence disappears, and an upgrade that widened it would silently restore the flake.
+
+Throttling per address is only meaningful if the address cannot be chosen by the client. The proxy therefore SHALL be the only source of the forwarded address: it overwrites what the client sent, which is what it does when it terminates TLS. Configuring it to forward client headers instead SHALL be treated as a change to this requirement, because the forwarded chain then becomes unresolvable and every such request falls into one bucket shared by all of them.
+
+#### Scenario: A password is guessed repeatedly
+- **WHEN** attempts arrive from one address faster than the allowance
+- **THEN** they are refused with a rate-limit response rather than checked, and the refusals count towards the allowance
+
+#### Scenario: The suite signs in more often than a person would
+- **WHEN** the end-to-end suite runs
+- **THEN** it stays within the allowance without the application being reconfigured, and it leaves the allowance clear so that a run started straight after this one is not refused
+
+#### Scenario: A client claims a different address
+- **WHEN** a request arrives carrying its own forwarded-address header
+- **THEN** the value is discarded by the proxy and the attempt is counted against the address the request actually came from

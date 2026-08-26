@@ -25,7 +25,17 @@
 - [x] 4.1 One organisation-scoped table, and a write the authenticated page performs. Verify the row records the organisation
 - [x] 4.2 The suite signs in as the seeded account, writes, and reads back only what belongs to its organisation. Verify by seeding a second account in a second organisation and confirming neither sees the other's row. **Without this, the requirement that rows record their organisation is a claim no run exercises**
 
+- [x] 4.3 **Not planned, and found by running it in the pipeline.** The suite signed in six times in ten seconds and the application refused it: the library throttles sign-in to three attempts per ten seconds per address, on by default whenever the app runs as production, so the stand enforces it too. The suite could therefore never be reliably green — the first two green runs were timing luck, and the red one looked in turn like a flake, like the stand's one CPU, and like broken organisation scoping. Fixed in the suite rather than in the application, because the throttle is a real defence against password guessing: sessions are now obtained once over the API and reused, the one form sign-in and the wrong-password attempt spend a modelled allowance, and a new test asserts the limit itself so that widening it cannot silently restore the flake. Two consecutive full runs pass, which the old suite never did. Verified separately that the address the throttle counts cannot be chosen by the client: the proxy overwrites the forwarded header when it terminates TLS, and a forged one is discarded
+- [x] 4.4 **Found by the same failure.** The wrong-password test asserted only that some problem message appeared, which "Too many requests" satisfies — so it would have gone green with password checking entirely broken. It now asserts the refusal names the credentials
+
 ## 5. Production exercises signing in
+
+**These follow the release, not precede it.** The synthetic account is created
+by signing up through the product's own path, and that path does not exist in
+production until this change is released — so 6.1 comes first, then 5.1 and 5.2,
+then 5.3 as a change of its own. The same ordering as teaching the readers to use
+a new endpoint after the endpoint exists, which was predicted in that case and
+still not applied when these tasks were written.
 
 - [ ] 5.1 Create the synthetic account in production by signing up through the product's own path, once, by hand. Verify sign-up works in production — the one time it will be checked there
 - [ ] 5.2 Store its credentials as a secret in both the place smoke reads and nowhere else. Verify the account is alone in its own organisation and has no data of its own
