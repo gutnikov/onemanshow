@@ -37,8 +37,22 @@ absence of the signals we can see, in the time we allowed.
 
 ## Closing it
 
-Green at the end of the window: close the ticket as completed, run openspec's
-sync and archive, and **take the next change from the queue**.
+**The window closes itself.** A schedule asks which changes are in `released`,
+how long ago they got there, and what every configured source says; on green it
+closes the ticket and takes up the queue head. So the usual case is that you
+arrive after the fact, and your job is to read what it found rather than to
+repeat it.
+
+Two things about that schedule are worth knowing. It reports on runs where it
+found nothing, so silence from it means it has stopped rather than that all is
+well. And it is late: a ten-minute cron was observed firing about every
+forty-five minutes on a quiet repository, because the scheduler deprioritises
+them. Lateness is the cost; correctness is not affected, because the check is
+derived rather than triggered.
+
+If you are closing one by hand — no schedule, or it has stopped — then: close
+the ticket as completed, run openspec's sync and archive, and **take the next
+change from the queue**.
 
 The archive is a documentation commit, and the release trigger ignores
 documentation paths, so no release runs. That is not incidental. While the

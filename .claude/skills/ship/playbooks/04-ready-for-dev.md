@@ -27,3 +27,9 @@ be presumptuous. Warn, do not block.
 
 Move the status to `dev` and continue into `playbooks/05-dev.md`. Do not stop
 here to announce that you are starting; the note at the end of `dev` covers it.
+
+Automation also takes the queue head when the segment frees, so you may arrive
+to find this already done. That is not a race to worry about: the state is
+derived, so whoever gets there second finds the work done. What it means for you
+is that a change sitting in `ready-for-dev` while the segment is empty is a
+signal — either the schedule has stopped, or nothing is watching.

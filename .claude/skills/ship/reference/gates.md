@@ -79,8 +79,15 @@ needing different work:
 | `blocked:e2e` | a test failure nobody could read — `playbooks/06-staging.md` |
 | `blocked:decision` | a product or technical question is open |
 | `blocked:external` | waiting on something outside |
+| `blocked:budget` | unattended repetition hit its ceiling — any action of yours refills it |
 
 Read the label. Do not infer the cause from the comments.
+
+`blocked:budget` is the odd one out: it is not a diagnosis but a ceiling. The
+count is automation's own actions on the ticket since the most recent action by
+a person, so it runs out only when repetition has gone unattended — and anything
+you do refills it, because acting *is* the reset. Worth asking what repeated
+that many times before spending the next allowance on it.
 
 ## The merge guards
 
@@ -93,9 +100,27 @@ Read the label. Do not infer the cause from the comments.
 - no other change in `released` with an open observation window
 - no active incident
 
-All six are readable from the tools. Nothing else checks them: the pipeline
-enforces none of the six, so they are guards only while whoever merges actually
-reads them. Treat that as the current state, not the intent.
+All six are read and **refused** by the workflow that performs the merge, which
+is the only place a guard can refuse rather than be recited. It reports each one
+by name: an aggregate verdict tells you a merge was refused without telling you
+what to fix, and the guard that gets forgotten is the one whose state nobody can
+see.
+
+Two of them are not what they look like.
+
+**Approval** checks *who* applied the label, not that it is there. If automation
+could apply it, reserving approval to a person would be decoration. It also
+drops back to `staging` when a new commit arrives, because the label records
+that somebody approved, not which commit they were looking at — and without
+that, a head could move underneath an approval while the guard read as
+satisfied.
+
+**Production equal to main** asks production what it is running, at its health
+endpoint. Every other source answers a different question: a deploy log and a
+workflow run record what was *intended*, and a rollback is exactly when intent
+and reality differ, which is the case this guard exists for. An application that
+does not report its commit makes the guard refuse — a missing answer is not a
+matching one.
 
 Two of them are easy to read wrongly.
 

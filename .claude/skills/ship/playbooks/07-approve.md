@@ -11,6 +11,15 @@ The stand's address is the whole artifact of this handover. Without it there is
 nothing to approve, and asking someone to find it themselves is asking them to
 do your job.
 
+Automation posts it when the validation passes, so by the time you are here it
+is usually already in the thread. Do not repeat it as though it were news —
+read what is there and add what it does not say, which is almost always the
+specific thing to look at.
+
+**A new commit after approval withdraws it.** Automation drops the label back to
+`staging` and says so, because the approval recorded that somebody approved, not
+which commit they were looking at.
+
 The address is stable for the life of the change, so it can be returned to
 tomorrow.
 
