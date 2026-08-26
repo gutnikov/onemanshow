@@ -9,6 +9,13 @@ inputs:
       Production's liveness endpoint, which reports the commit it is running.
       Asked of the artifact rather than read from a log, because a log records
       what was intended and a rollback is when intent and reality differ.
+
+      Point it at liveness where production reports from there, because that
+      answers while production is unready - which is when the question matters
+      most. Point it at readiness while production predates that endpoint: both
+      carry the commit. Changing the endpoint and the readers in one commit
+      makes every validation refuse, because these workflows apply immediately
+      and production only changes when it is deployed.
     required: true
 outputs:
   sha:

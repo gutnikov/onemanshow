@@ -73,7 +73,7 @@ jobs:
       - id: running
         uses: gutnikov/onemanshow/.github/actions/production-commit@main
         with:
-          health_url: https://${{ inputs.domain }}/alive
+          health_url: https://${{ inputs.domain }}/health
 
       - name: deploy the same version again
         uses: gutnikov/onemanshow/.github/actions/kamal@main

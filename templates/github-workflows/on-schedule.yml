@@ -19,5 +19,5 @@ jobs:
   window:
     uses: gutnikov/onemanshow/.github/workflows/window.yml@main
     with:
-      production_health_url: https://REPLACE_ME_PRODUCTION_HOSTNAME/alive
+      production_health_url: https://REPLACE_ME_PRODUCTION_HOSTNAME/health
     secrets: inherit
