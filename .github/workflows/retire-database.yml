@@ -84,10 +84,20 @@ jobs:
           set -eu
           for d in ${{ inputs.destinations }}; do
             echo "== ${d} =="
+            # Production is the base configuration and has no destination name:
+            # there is no deploy.production.yml, and passing -d production looks
+            # for one and fails. The asymmetry belongs to the deploy tool, not to
+            # this project, and it has caused trouble before - the service label
+            # collision came from the same place.
+            case "$d" in
+              production | default | base) flag="" ;;
+              *) flag="-d $d" ;;
+            esac
+            # shellcheck disable=SC2086
             docker run --rm -v "$PWD:/workdir" -v "$HOME/.ssh:/root/.ssh:ro" \
               -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_STAGING_DOMAIN \
               -e SHIP_REGISTRY_USER -e KAMAL_REGISTRY_PASSWORD \
-              ghcr.io/basecamp/kamal:v2.12.0 accessory remove db -d "$d" -y
+              ghcr.io/basecamp/kamal:v2.12.0 accessory remove db $flag -y
           done
 
       # Say what is gone, because after this the rollback is different in kind.
