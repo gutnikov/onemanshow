@@ -37,19 +37,25 @@ Four properties are required of the dump, and each of them exists because its ab
 - **THEN** its content is inspected for what it should and should not contain, rather than the job's exit status being taken as proof
 
 ### Requirement: Staging cannot reach production
-Staging and production SHALL NOT share a database instance. The boundary between them SHALL be the provider's, not a password: preparing staging SHALL be an operation on a separate database that cannot name production's.
+Staging and production SHALL NOT share a database instance, so that preparing one is an operation on the other's peer rather than a destructive command against something that also serves production.
 
-Each environment SHALL hold only its own credentials regardless, because two boundaries are not more expensive than one.
+**The boundary is credentials and a named target, not the network, and that SHALL be stated rather than implied.** A managed provider's endpoints are publicly resolvable and accept connections from anywhere: production's database host was reached over TCP from an unrelated machine while this was being written. Nothing about moving off a shared host produced network isolation, and a requirement that implied otherwise would be believed.
 
-Where a project still runs both environments on one machine, it has the weaker guarantee that the removed requirement described — separation of storage without separation of reach — and that SHALL be stated wherever the stronger one might be assumed.
+What the arrangement does give: each environment holds only its own credentials, so a process in one cannot authenticate to the other's database; and the operations that create and empty staging are scoped to a project identifier that comes from configuration rather than from anything derived at run time, so production's is not a value they could arrive at.
+
+The credential used for those operations SHALL be as narrow as the provider allows. Where it is account-wide — able to see and delete every project rather than the one it is for — that breadth SHALL be recorded as a weakness rather than left unexamined, because it is the one thing that could name production's database by mistake.
 
 #### Scenario: Staging is prepared
 - **WHEN** the pipeline prepares staging
-- **THEN** it acts on staging's own database, and production's is not something it could name by accident
+- **THEN** it acts on the project named in configuration, and production's project is not a value it computes
 
 #### Scenario: One environment reaches for the other's database
 - **WHEN** a process in the staging environment attempts to connect to production's database
-- **THEN** it holds no credentials for it, and on a managed provider it is also not on a network that reaches it
+- **THEN** the connection is established at the transport level, because the endpoint is public, and authentication fails because it holds no credentials for it
+
+#### Scenario: Someone assumes the environments are network-isolated
+- **WHEN** an argument depends on staging being unable to reach production's database at all
+- **THEN** that argument is unsound, and the reachability is a fact of the provider rather than something this pipeline can change on the plans it targets
 
 #### Scenario: Preparation is pointed at a target that is not staging
 - **WHEN** the preparation step is given a target that does not identify itself as staging
