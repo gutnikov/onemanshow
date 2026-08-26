@@ -93,14 +93,21 @@ jobs:
       # Read before anything changes. After the deploy this answers about the
       # new image, and the question is what production was running BEFORE - the
       # image an automatic rollback would return to.
+      # An action, not a path: written as a path it resolved against the
+      # project's checkout, where these files do not exist, and
+      # continue-on-error turned that into the word "unknown". The rollback
+      # decision then read unknown as "not safe", which is the right answer for
+      # the wrong reason - the check was blind rather than cautious. Third time
+      # this path mistake appeared today.
+      #
+      # continue-on-error stays: production being unreachable is a fact this
+      # release must proceed past, not a reason to refuse to deploy. What it
+      # must not hide is a broken check, which calling the action fixes.
       - id: before
         continue-on-error: true
-        run: |
-          set -eu
-          v="$(.github/actions/production-commit/production-commit \
-                 "https://${{ inputs.domain }}/health" || true)"
-          echo "sha=$v" >> "$GITHUB_OUTPUT"
-          echo "production was running: ${v:-unknown}"
+        uses: gutnikov/onemanshow/.github/actions/production-commit@main
+        with:
+          health_url: https://${{ inputs.domain }}/health
 
       - name: migrate production
         run: |
