@@ -17,9 +17,9 @@
 
 ## 3. The window closes itself
 
-- [ ] 3.1 A scheduled workflow that finds changes in `released` whose window has elapsed, consults every configured source, closes the ticket as completed, and names any source that was unavailable. Verify by releasing a change and leaving it alone. **The evaluation already exists** in `.github/actions/health-window` and is referenced by no workflow — it is the only composite action in the repository that nothing calls, which is why the window has been evaluated by hand. Wire it rather than write it, and read its verdict from its exit code
+- [x] 3.1 A scheduled workflow that finds changes in `released` whose window has elapsed, consults every configured source, closes the ticket as completed, and names any source that was unavailable. Verify by releasing a change and leaving it alone. **The evaluation already exists** in `.github/actions/health-window` and is referenced by no workflow — it is the only composite action in the repository that nothing calls, which is why the window has been evaluated by hand. Wire it rather than write it, and read its verdict from its exit code
 - [x] 3.2 Verify the window evaluation can report unhealthy, one source at a time: a failed smoke, an unreported smoke, a new issue in the release, reported downtime, a declared monitor that does not exist, and a monitor that exists while the configuration declares none. Each must give a non-zero exit. Done once by hand on 2026-08-25 and worth keeping as a test rather than a memory
-- [ ] 3.3 Take up the head of the queue when the segment frees, and say so when the queue is empty. Verify with two changes queued: the second must start without anyone asking. Verify the empty case too — silence and a stopped queue must be distinguishable
+- [x] 3.3 Take up the head of the queue when the segment frees, and say so when the queue is empty. Verify with two changes queued: the second must start without anyone asking. Verify the empty case too — silence and a stopped queue must be distinguishable
 - [x] 3.4 Report on every run, including runs that found nothing to do, so a stopped schedule is distinguishable from a quiet one. Verify by disabling the schedule and confirming the absence is noticeable
 - [x] 3.5 An inbound dispatch endpoint for an external liveness signal, admitting only whitelisted fields. Verify by sending a payload containing free text and confirming none of it reaches the thread
 
@@ -44,4 +44,4 @@
 
 - [ ] 7.1 Drive one change end to end with no person performing a transition other than the two gates. Verify each transition happened without being asked, and that the thread reads coherently to someone opening it cold
 - [ ] 7.2 Disable each workflow in turn and confirm the transition falls back to a person rather than the change becoming stuck. Verify that a partly-built reactive layer is slower rather than broken
-- [ ] 7.3 Perform every transition by hand while its workflow is enabled, and confirm the work is found already done rather than done twice
+- [x] 7.3 Perform every transition by hand while its workflow is enabled, and confirm the work is found already done rather than done twice. A repeated release reported "already released - the window is open"; a repeated approval initially **failed the run** after all six guards passed, because the merge resolved the pull request a second time with its own query and found none open. Fixed by giving it the head already resolved. The assumption that two actors can reach the same transition had never been tested past the merge
