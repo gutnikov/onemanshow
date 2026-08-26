@@ -18,6 +18,7 @@ PAIRS = [
     ("templates/github-workflows/on-schedule.yml", ".github/workflows/window.yml"),
     ("templates/github-workflows/on-liveness.yml", ".github/workflows/liveness.yml"),
     ("templates/github-workflows/on-secrets.yml", ".github/workflows/reconfigure.yml"),
+    ("templates/github-workflows/on-adopt-database.yml", ".github/workflows/adopt-database.yml"),
 ]
 
 def triggers(doc):

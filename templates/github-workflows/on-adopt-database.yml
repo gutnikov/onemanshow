@@ -1,0 +1,15 @@
+# Instance wiring: replace every REPLACE_ME. See this directory's README.
+#
+# Run once per environment, by hand, when moving from a database on the machine
+# to a managed one. It copies and verifies; pointing the application at the new
+# database is a separate, reversible step.
+name: adopt database
+on: { workflow_dispatch: }
+jobs:
+  adopt:
+    uses: gutnikov/onemanshow/.github/workflows/adopt-database.yml@main
+    with:
+      host: REPLACE_ME_SERVER_IP
+      host_key: |
+        REPLACE_ME_KNOWN_HOSTS_LINES
+    secrets: inherit

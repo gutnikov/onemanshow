@@ -1,0 +1,96 @@
+# Moves an environment's data from a database on the machine to a managed one.
+#
+# One-off by nature and kept anyway: a project doing this a year from now will
+# want the steps to exist rather than to be reconstructed, and the check at the
+# end is the part that is easy to leave out.
+#
+# It does not change any configuration. Copying the data and pointing the
+# application at it are separate acts, so the copy can be verified before
+# anything depends on it, and so a failed copy leaves production untouched.
+name: adopt database
+
+on:
+  workflow_call:
+    inputs:
+      host: { required: true, type: string }
+      host_key: { required: false, type: string, default: "" }
+      known_row_query:
+        description: SQL returning one value that must survive the move
+        required: false
+        type: string
+        default: "select message from greeting limit 1"
+    secrets:
+      SOPS_AGE_KEY: { required: true }
+      SSH_PRIVATE_KEY: { required: true }
+
+jobs:
+  adopt:
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    env:
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: install sops
+        run: |
+          curl -fsSL -o /tmp/sops https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64
+          sudo install -m 0755 /tmp/sops /usr/local/bin/sops
+      - uses: gutnikov/onemanshow/.github/actions/ssh-agentless@main
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ inputs.host }}
+          host_key: ${{ inputs.host_key }}
+
+      - name: read both addresses
+        run: |
+          set -eu
+          old="$(sops -d --extract '["DATABASE_URL_TUNNEL"]' secrets/prod.yaml)"
+          echo "::add-mask::$old"
+          echo "OLD_URL=$old" >> "$GITHUB_ENV"
+          key="$(sops -d --extract '["NEON_API_KEY"]' secrets/ci.yaml)"
+          echo "::add-mask::$key"
+          proj="$(python3 -c "import yaml;print(yaml.safe_load(open('ship.yml'))['roles']['database']['production_project'])")"
+          new="$(curl -sS --max-time 25 -H "Authorization: Bearer $key" \
+                   "https://console.neon.tech/api/v2/projects/${proj}/connection_uri?database_name=neondb&role_name=neondb_owner&pooled=false" \
+                 | python3 -c 'import json,sys; print(json.load(sys.stdin)["uri"])')"
+          echo "::add-mask::$new"
+          echo "NEW_URL=$new" >> "$GITHUB_ENV"
+
+      # The destination must be empty. Copying into a database that already has
+      # data is how two half-populated databases happen, and neither is then the
+      # one to trust.
+      - name: the destination must be empty
+        run: |
+          set -eu
+          n="$(psql "$NEW_URL" -tAc "select count(*) from information_schema.tables where table_schema='public'" | tr -d '[:space:]')"
+          [ "$n" = 0 ] || { echo "::error::the managed database already holds ${n} table(s); refusing to copy into it"; exit 1; }
+          echo "destination is empty"
+
+      - name: copy
+        run: |
+          set -eu
+          ssh -f -N -L 5432:localhost:5432 "root@${{ inputs.host }}"
+          pg_dump --no-owner --no-privileges --clean --if-exists "$OLD_URL" > /tmp/move.sql
+          echo "dumped $(wc -c < /tmp/move.sql) bytes"
+          psql "$NEW_URL" -v ON_ERROR_STOP=1 -q -f /tmp/move.sql
+          echo "restored"
+
+      # Read back a value that had to survive. A copy that reports success and
+      # moved nothing is the failure this whole project keeps finding.
+      - name: read back what had to survive
+        run: |
+          set -eu
+          before="$(psql "$OLD_URL" -tAc "${{ inputs.known_row_query }}" | sed 's/^ *//;s/ *$//')"
+          after="$(psql "$NEW_URL" -tAc "${{ inputs.known_row_query }}" | sed 's/^ *//;s/ *$//')"
+          echo "old: '${before}'"
+          echo "new: '${after}'"
+          [ -n "$after" ] || { echo "::error::the destination returned nothing for the known row"; exit 1; }
+          [ "$before" = "$after" ] || { echo "::error::the value differs after the copy"; exit 1; }
+          echo "the value survived the move"
+
+      - name: what this did not do
+        run: |
+          echo "The data is copied and verified. Nothing points at it yet:"
+          echo "  change DATABASE_URL in secrets/prod.yaml and push, which"
+          echo "  redeploys the running version with the new configuration."
+          echo "The old database is untouched, so this is reversible until it is deleted."
