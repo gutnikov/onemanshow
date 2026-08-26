@@ -1,30 +1,38 @@
 # Tasks
 
-## 1. Decide before touching anything
+## 0. Whether or not the rest happens
 
-- [ ] 1.1 Settle where the registry host lives: an input repeated in six stubs, or read from the deploy tool's own config. Record the answer and the reason
-- [ ] 1.2 **Settle whether the run's own token can push to ghcr from a reusable workflow owned by another repository.** If it cannot, the read-write token stays and the main saving of this change is gone — so this is answered by trying it, before anything is deleted
-- [ ] 1.3 Settle what the machine pulls with, and if it is an expiring token, where its expiry is recorded so a release does not fail in three months for a forgotten reason
+- [ ] 0.1 Rotate the leaked read-only registry token. It leaked into a CI log before masking existed, it is the cost of *skipping* this change, and it should not wait for a migration to be worth doing
 
-## 2. The switch, with a way back
+## 1. Stop the host being implicit, without a silent fallback
 
-- [ ] 2.1 Mirror the image production currently runs to ghcr before anything changes. Verify by inspecting it on the new host, not by trusting the command's exit code
-- [ ] 2.2 The registry host becomes explicit in the build, both logins, the artifact-existence check and the deploy configuration. Verify each one names ghcr rather than inheriting a default
-- [ ] 2.3 The stand goes first: a validation run that builds, pushes and deploys from ghcr end to end, with the layers check passing on the new host
+- [ ] 1.1 Export `SHIP_REGISTRY_SERVER` from the workflows that run the deploy tool, and **remove its `"docker.io"` default** from `config/deploy.yml`. The default is what would let a forgotten export resolve one path to Docker Hub while another uses ghcr
+- [ ] 1.2 Add it to all **four** `-e` allowlists for the container Kamal runs in — the deploy action, both invocations in the rollback action, and the database retirement workflow. Verify by making each one fail with the variable removed, because the failure mode is a path that quietly disagrees with the others
+- [ ] 1.3 The two runner-side logins name the host explicitly
 
-## 3. Production
+## 2. Push with the run's own token
 
-- [ ] 3.1 A release deploys from ghcr and production reports the released commit
-- [ ] 3.2 **Attempt a rollback deliberately afterwards.** This is the path the migration threatens: the previous image may live only on Docker Hub, and it may or may not be saved by already being present on the machine. Learn which, on purpose, rather than during an incident
-- [ ] 3.3 Verify the promoted image and the validated one are still the same layers — seen passing, not assumed to carry over
+- [ ] 2.1 `packages: write` on the validate job, and the build pushes without a stored credential. Verify the push happens and the image is inspectable at the new host
+- [ ] 2.2 The artifact-existence check uses the run's own token with `packages: read`, so the pull credential stops being decrypted onto a runner there
+- [ ] 2.3 Record in `init.md` that an instance's workflow permission ceiling must allow `packages: write`, since the build now depends on it and a repository defaulted to `read` would fail at push time in somebody else's project
 
-## 4. Removing what is no longer used
+## 3. Names
 
-- [ ] 4.1 Delete `REGISTRY_TOKEN_RW` from `secrets/ci.yaml` and confirm a build still passes. A credential that is unused but present is one nobody rotates
-- [ ] 4.2 Replace `REGISTRY_TOKEN_RO` in `prod.yaml` and `staging.yaml`, and verify the old value no longer works anywhere by trying it
-- [ ] 4.3 Decide and record when the Docker Hub tokens die. The leaked read-only one is a standing item; if it survives this change, rotate it in this change instead of waiting
+- [ ] 3.1 The image path and the account name change together — owner `gutnikov`, not `agutnikov` — across twelve stub files in two repositories, and the template placeholder stops being called `REPLACE_ME_DOCKERHUB_USER`
+- [ ] 3.2 **The package name is derived per repository rather than typed**, so two instances under one owner do not collide on one package. Verify by reading what a second instance would resolve to
+- [ ] 3.3 `check-instance-stubs.py` learns to refuse a stub whose registry is unset as well as one whose `image:` carries a host — it guards only the second today, and the mistake this change can make is the first
 
-## 5. What this change also closes
+## 4. A way back
 
-- [ ] 5.1 `manual-path` 1.2: a commit that **does** touch a deployable path still releases. This change touches `config/` and the workflows, so its release is the first chance to see the other direction of that decision
-- [ ] 5.2 `smoke-signs-in` 3.2 and `manual-path` 7.1-7.3: the deferred rehearsal. With a knowingly wrong credential, the pre-deploy sign-in probe must stop this change's release before anything is migrated or deployed — and here the head is deployable, so a probe that failed to stop it would not leak a wiring-only commit to production
+- [ ] 4.1 Mirror the image production runs to ghcr **before** the switch, at the exact tag, and verify by inspecting it there and confirming the `service` label survived — Kamal validates that label before booting a pulled image
+- [ ] 4.2 Decide whether `kamal rollback` gains an explicit registry login, given that it has none today and its pull depends on a login left on the host by the last deploy. This decides whether the machine's credential may expire
+- [ ] 4.3 **Keep a written list of the shas whose `-production` tag exists only on ghcr**, and keep it current. Without it, undoing this change cannot be performed: the release refuses to rebuild, so each such image must be mirrored back by hand
+- [ ] 4.4 Neither Docker Hub token is revoked until a release **and** a real rollback have both succeeded on ghcr
+
+## 5. Then production
+
+- [ ] 5.1 The stand first: build, push and deploy from ghcr end to end
+- [ ] 5.2 A release deploys from ghcr, and a person reads the literal `ghcr.io/` in the deploy step's output — the commit production reports is the same either way
+- [ ] 5.3 Attempt a rollback deliberately, now that its reporting has been fixed
+- [ ] 5.4 The pull credential is exercised in both directions by a standing check: it can pull and it cannot push
+- [ ] 5.5 `manual-path` 1.2: a commit that **does** touch a deployable path still releases. This change touches `config/`, so its release is the first chance to see that direction — and this one stays, because it is a by-product rather than an experiment that needs an unambiguous cause

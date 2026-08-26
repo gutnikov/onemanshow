@@ -1,106 +1,129 @@
 # Move the registry to ghcr
 
-## Why
+## Why, re-priced by the examination
 
-Three credentials exist today because the registry is somewhere else: a
-read-write token in `secrets/ci.yaml` that the build uses, a read-only token in
-`secrets/prod.yaml` and `secrets/staging.yaml` that the machine uses, and the
-account they belong to. One of them — the read-only token — leaked into a CI log
-before masking existed and is still unrotated.
+The first draft gave four reasons. Three do not survive reading the files, and
+saying so is the point of writing this down.
 
-On ghcr the build pushes with the token the run already has, so the read-write
-token stops existing rather than being rotated. The machine still needs
-something to pull with, so that one does not disappear; it becomes a
-repository-scoped token instead of an account-wide one.
+**What is actually gained.** Two things, both real:
 
-Two smaller things come with it: Docker Hub's pull limits stop applying, and the
-64 tags now sitting there with no retention policy get a place where retention is
-a setting rather than a chore.
+1. `REGISTRY_TOKEN_RW` stops existing rather than being rotated: the build pushes
+   with the token the run already has. That is one declared permission, not an
+   experiment — see below.
+2. The artifact-existence check in the release stops needing a stored credential
+   at all. It logs in only to ask "does this tag exist", which on ghcr the run's
+   own token answers. That removes one of the five places the pull credential is
+   decrypted onto a runner — and being decrypted onto a runner is exactly how the
+   current one leaked into a log.
 
-**The reason this is safe to concentrate at one vendor** — while the secrets are
-not, which was refused on the ticket — is that the image is rebuildable from
-source. Losing the account costs a rebuild, not data. That is not true of a
-credential or a database.
+**What was claimed and is false.**
 
-## No spec delta
+- *"Docker Hub's pull limits stop applying."* They do not. `Dockerfile` pulls
+  `node:22-alpine` on every build, and `backup.yml`, `adopt-database.yml` pull
+  `postgres:18-alpine`. The app image is pulled **authenticated**, which was never
+  the limited case; every anonymous pull stays where it is.
+- *"Three credentials exist because the registry is somewhere else."* The pull
+  credential is decrypted in five reusable workflows — release, staging,
+  reconfigure, rollback, retire-database — and after the move a repository-scoped
+  ghcr token is decrypted in the same five. The exposure surface does not shrink;
+  the blast radius of the next leak does.
+- *"64 tags with no retention."* The repository is private, so nobody reading this
+  can check the number, and the tidiness argument rested on it. Retention is also
+  available where the images are today.
+- *Repository-scoped instead of account-wide* is available on Docker Hub. If scope
+  is the argument, moving vendor is not the mechanism.
 
-Nothing in `openspec/specs` names a registry. `ship.yml` records `registry:
-docker-hub` as a role's provider, and this changes the provider. The
-requirements about promoting rather than rebuilding, and about the deployed image
-being the validated artifact, are unchanged and still have to hold across the
-move — which is most of the work below.
+**What skipping costs, which the first draft never priced.** Rotating one leaked
+token. That should happen whether or not this change happens, and it is listed
+as task 0 below for that reason.
 
-## What is being built
+## What the examination settled, so `dev` does not reopen it
 
-1. **The registry host stops being implicit.** Every `docker login`, every build
-   tag and the artifact-existence check assume Docker Hub today by saying nothing:
-   `docker login -u user` with no host is Docker Hub. The host becomes explicit
-   in the four reusable workflows and in the deploy tool's own config.
-2. **The build pushes with the run's own token**, with `packages: write`
-   declared where it is needed, and `REGISTRY_TOKEN_RW` is deleted from
-   `secrets/ci.yaml` rather than left to rot.
-3. **The machine pulls with a repository-scoped token**, replacing
-   `REGISTRY_TOKEN_RO` in both `prod.yaml` and `staging.yaml`.
-4. **The last known-good image is mirrored to ghcr before the switch**, so a
-   rollback across the boundary has somewhere to roll back to. See below.
+- **The registry host is not a new parameter.** `config/deploy.yml` already reads
+  `ENV.fetch("SHIP_REGISTRY_SERVER", "docker.io")`, and that variable is set
+  **nowhere in either repository**. So the "decision" in the first draft was a
+  false choice. The real work is deciding which workflows export it — and
+  **removing the default**, because a default means a forgotten export silently
+  resolves to Docker Hub in one path while another uses ghcr.
+- **Whether the run's own token can push: yes.** The instance's ceiling is
+  `write`, no stub restricts it, and a called reusable workflow mints the
+  **caller's** token. `pr.yml`'s validate job declares `permissions: { contents:
+  read }`, so the answer is adding `packages: write` there. One line.
+  `secrets: inherit` is unrelated — the run's token is minted, not inherited.
+- **The image path and the account name both change.** The GitHub owner is
+  `gutnikov`; the Docker Hub account is `agutnikov`. Twelve stub files carry
+  `image:` and `registry_user:`, and the template's placeholder is literally
+  called `REPLACE_ME_DOCKERHUB_USER`.
+- **The package name must be derived per repository, not typed.** Two instances
+  of this template under one GitHub owner would collide on one package, and the
+  second instance's token cannot push to a package linked to the first. For a
+  template that is a correctness requirement, not tidiness.
+
+## The real size of it
+
+Not "four workflows". Two runner-side logins, six workflows that take a registry
+account and token, two composite actions that embed the image path in registry
+commands, **four separate `-e` allowlists** for the container Kamal runs in, and
+twelve stub files across two repositories. The allowlists are the dangerous part:
+update the deploy path and forget the rollback path, and the release uses ghcr
+while a rollback silently uses Docker Hub — a disagreement that surfaces only
+during an incident.
 
 ## What is not included
 
-- **The secrets do not move.** Refused on the ticket, with the requirement that
-  forbids it quoted there.
-- **No retention policy yet.** It is worth having and it is a separate change:
-  deleting images is the one operation here that cannot be undone.
-- **The package stays private.** Making it public would remove the machine's
-  need for a credential entirely, and would publish the application's layers.
-  For a template that might be acceptable; for the product this instance stands
-  in for, it is not.
+- **The secrets do not move.** Refused on the ticket, with the requirement quoted
+  there.
+- **The rehearsal goes back where it was deferred.** The first draft claimed the
+  deferred pre-deploy-probe rehearsal from `smoke-signs-in` and `manual-path`.
+  That was wrong: the rehearsal's entire value is that a red probe is
+  *attributable*, and running it on the release that also changes the registry
+  gives a red probe two candidate causes. It was deferred to escape exactly that
+  ambiguity.
+- **No retention policy.** And a note for whoever writes one: any age-based rule
+  must exempt what production runs **and its predecessor**, because the rollback
+  target is chosen from the machine's containers and Kamal will need that
+  version's image at the configured path.
+- **The package stays private**, so the machine keeps needing a credential.
 
-## The thing most likely to bite
+## The thing most likely to bite, corrected
 
-**A rollback needs the previous image, and the previous image is on Docker Hub.**
-After the switch, `kamal rollback` composes the image name from the configured
-registry, so it would look on ghcr for a tag that only exists on Docker Hub.
+A rollback needs the previous image, and after the switch Kamal composes a
+reference that does not exist. The first draft hedged that a locally present
+image might save it. It will not: Docker resolves by **reference string**, and
+`ghcr.io/gutnikov/…:<sha>-production` is not what the host has tagged. So the
+mirror is mandatory, not belt-and-braces.
 
-It may work anyway: the previous image is already pulled on the machine, and a
-rollback of a version whose image is present locally does not need the registry.
-"May" is not good enough for the path that exists for incidents, so the change
-mirrors the current production image to ghcr — one `imagetools create` — and the
-Docker Hub credential stays alive for one release cycle rather than being deleted
-in the same breath.
+Two consequences the first draft missed:
+
+- **`kamal rollback` never logs into the registry.** Login happens on the deploy
+  path, not the rollback path, so a rollback's pull depends on a login left on
+  the host's disk from the last deploy. An expiring token therefore fails the
+  *rollback during an incident*, not a release. Either the credential does not
+  expire, or the rollback gains an explicit login.
+- **The mirror must preserve the `service` label**, because Kamal validates it
+  before booting a pulled image.
 
 ## How we will know it worked
 
-- A release deploys an image pulled from ghcr and production reports the released
-  commit. That is the ordinary evidence.
-- The validated artifact and the deployed one are still the same layers, which the
-  pipeline already checks — and the check has to be seen passing on the new host,
-  not assumed to carry over.
-- **A rollback is attempted deliberately after the switch**, because that is the
-  path the boundary threatens and the only way to learn whether the local image
-  saves us.
-- `REGISTRY_TOKEN_RW` is gone from `ci.yaml` and nothing fails, which is the
-  evidence that the build really stopped using it.
+Corrected, because three of the first draft's four criteria pass while the change
+is broken.
 
-## What has to be decided, and is not obvious
+- **A person reads the deploy step's host output for the literal `ghcr.io/`.**
+  The commit production reports is identical whichever registry it came from.
+- **The credential is exercised in both directions**, the way the database key
+  already is: the new pull token succeeds against the package and is refused for
+  write. A standing check, not a one-off.
+- **A rollback is attempted for real** — now worth something, because the
+  reporting defect that made it unable to fail was fixed first: the rollback used
+  to report `rewound=yes` on exit 0, and `kamal rollback` exits 0 when the target
+  container is gone.
+- **The layers check is not evidence about the boundary.** It takes one image and
+  never crosses registries. Seeing it pass on ghcr proves it still runs.
 
-1. **Where the registry host lives.** A new input threaded through four reusable
-   workflows means six stub files repeat it, next to `image` and `registry_user`
-   which they already repeat. The alternative is to read it from the deploy
-   tool's own configuration, which is the authority on it anyway — fewer copies,
-   at the cost of the pipeline reading a file that belongs to the deploy tool.
-   The existing design says the pipeline must not infer things about the
-   project's tooling; it also already runs that tooling by name.
-2. **Whether the run's own token can push at all here.** The build happens in a
-   reusable workflow owned by the template and called by the instance, so the
-   permissions that apply are the caller's. If that turns out not to be enough, the
-   read-write token does not disappear and the main saving of this change goes with
-   it. This should be settled before anything is deleted.
-3. **What the machine's pull credential is.** A fine-grained token scoped to one
-   package is the tidy answer and expires; a classic token with `read:packages`
-   does not expire and is broader. An expiring credential in a place nothing
-   watches is a release that fails in three months for a reason nobody remembers.
-4. **Whether this change should also delete the Docker Hub tokens.** Doing it in
-   the same change is tidy and removes the rollback path across the boundary.
-   Doing it later leaves two live credentials for a while, one of them the leaked
-   one — which is an argument for rotating that one now rather than waiting for
-   the cleanup.
+## Recommendation, since the examination changed the price
+
+Rotate the leaked token now, as task 0, independently of everything else. Then
+this change is worth doing for one credential removed, one runner-side decryption
+removed, and retention becoming possible — against roughly twenty files in two
+repositories. That is a fair trade but a much smaller one than the first draft
+implied, and if the answer is "not now", the right outcome is the rotation alone.
