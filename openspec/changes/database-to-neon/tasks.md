@@ -14,10 +14,10 @@
 
 ## 3. The endpoints come apart
 
-- [ ] 3.1 Add a liveness endpoint that reports the process is serving and which commit it is, and touches no database. Verify against a deployed instance with the database unreachable: liveness answers, readiness does not
-- [ ] 3.2 Point the external monitor and the proxy's health check at liveness. Verify the database's compute activity shows it sleeping — that graph is the whole point of this group
-- [ ] 3.3 Move the deep readiness check into the release as an explicit step, after the deploy and before smoke. Verify it **refuses** a container whose schema is ahead of its code: that is the state a rollback leaves, it is what the conditional rollback decision rests on, and it must fail visibly in the pipeline rather than implicitly in a proxy setting
-- [ ] 3.4 Make the guard that production and main agree, and the configuration redeploy, read liveness rather than readiness. Verify both still work while production is unhealthy — identity is exactly what is needed when things are broken
+- [x] 3.1 Add a liveness endpoint that reports the process is serving and which commit it is, and touches no database. Verify against a deployed instance with the database unreachable: liveness answers, readiness does not
+- [ ] 3.2 Point the external monitor and the proxy's health check at liveness. Verify the database's compute activity shows it sleeping — that graph is the whole point of this group. **The proxy is done and deployed; the monitor is a change in the provider's interface and is the last thing standing between this and a sleeping database.** Until it moves, production's database is woken every five minutes by the check that exists to notice it dying
+- [x] 3.3 Move the deep readiness check into the release as an explicit step, after the deploy and before smoke. Verify it **refuses** a container whose schema is ahead of its code: that is the state a rollback leaves, it is what the conditional rollback decision rests on, and it must fail visibly in the pipeline rather than implicitly in a proxy setting
+- [x] 3.4 Make the guard that production and main agree, and the configuration redeploy, read liveness rather than readiness. Verify both still work while production is unhealthy — identity is exactly what is needed when things are broken
 
 ## 4. Production moves, reversibly
 
