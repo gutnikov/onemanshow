@@ -29,6 +29,11 @@ on:
       - '.github/**'
       - 'templates/**'
       - 'provision/**'
+      # Helper scripts for the pipeline itself, not part of the artifact.
+      # Adding one released, the release failed for want of an image, and the
+      # fourth merge guard found the residue - which is the exclusion list
+      # working as chosen: a path missing from it fails loudly.
+      - 'scripts/**'
       - 'ship.yml'
       # Secrets change what the container is given, not what the image
       # contains, so a release has no artifact to promote for such a commit and
