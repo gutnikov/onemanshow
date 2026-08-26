@@ -1,0 +1,29 @@
+name: production commit
+description: >
+  What production is running, asked of production. One definition, used by the
+  merge guard, the staging baseline and the configuration redeploy - all three
+  need the same fact, and a copy in each would be a copy to keep in step.
+inputs:
+  health_url:
+    description: >
+      Production's liveness endpoint, which reports the commit it is running.
+      Asked of the artifact rather than read from a log, because a log records
+      what was intended and a rollback is when intent and reality differ.
+    required: true
+outputs:
+  sha:
+    description: The commit production reports it is running
+    value: ${{ steps.ask.outputs.sha }}
+runs:
+  using: composite
+  steps:
+    - id: ask
+      shell: sh
+      env:
+        HEALTH_URL: ${{ inputs.health_url }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -eu
+        sha="$("$ACTION_PATH/production-commit" "$HEALTH_URL")"
+        echo "sha=$sha" >> "$GITHUB_OUTPUT"
+        echo "production runs $sha"

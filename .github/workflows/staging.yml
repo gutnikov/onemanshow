@@ -118,12 +118,14 @@ jobs:
       # Production's own answer, over HTTP. It used to be read by running the
       # deploy tool on the machine, which needed ssh, a container and a pipe
       # that once turned a failure into an empty string and a green step.
+      # Called as an action, not by path. Written as a path it would resolve
+      # against the project's checkout, where these files do not exist - they
+      # live in the template. Caught before it ran; the same mistake was in the
+      # reconfigure workflow.
       - id: prod
-        run: |
-          set -eu
-          sha="$(.github/actions/production-commit/production-commit "https://${{ inputs.domain }}/health")"
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          echo "production runs $sha"
+        uses: gutnikov/onemanshow/.github/actions/production-commit@main
+        with:
+          health_url: https://${{ inputs.domain }}/health
 
       # Created, not emptied. The action this replaces removed a named volume
       # while the data lived in a bind mount, so it destroyed nothing and said

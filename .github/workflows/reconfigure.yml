@@ -71,12 +71,9 @@ jobs:
       # quietly move production to a different version under the guise of
       # applying configuration.
       - id: running
-        run: |
-          set -eu
-          v="$(.github/actions/production-commit/production-commit \
-                 "https://${{ inputs.domain }}/health")"
-          echo "sha=$v" >> "$GITHUB_OUTPUT"
-          echo "redeploying $v with current configuration"
+        uses: gutnikov/onemanshow/.github/actions/production-commit@main
+        with:
+          health_url: https://${{ inputs.domain }}/health
 
       - name: deploy the same version again
         uses: gutnikov/onemanshow/.github/actions/kamal@main
