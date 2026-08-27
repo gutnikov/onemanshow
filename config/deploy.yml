@@ -30,6 +30,16 @@ ssh:
 proxy:
   ssl: true
   host: <%= ENV.fetch("SHIP_DOMAIN") %>
+  # Renaming an environment: add the new name here first, keep the old one, and
+  # flip the pipeline's own references in a later change.
+  #
+  #   host: <%= ENV.fetch("SHIP_DOMAIN") %>,app.example.com
+  #
+  # The proxy routes by host header and answers 404 for a name it was not told
+  # about, so swapping this value in one step stops serving the old name the
+  # moment it deploys - while every health URL, probe and guard still asks the
+  # old one. Kamal splits this value on commas, so the transition costs a comma.
+  # Remove the second name in the change that flips the references.
   app_port: 3000
   # Liveness, not readiness. Whether this proxy polls continuously is a fact
   # this project does not have - and pointing it here makes the fact irrelevant,
