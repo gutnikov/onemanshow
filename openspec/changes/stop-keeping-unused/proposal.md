@@ -2,8 +2,6 @@
 
 ## Why
 
-Two piles have been accumulating, and each one is a different kind of debt.
-
 **Credentials that outlived their reason.** The database moved off the machine
 three changes ago, and `POSTGRES_PASSWORD` and `DATABASE_URL_TUNNEL` are still
 encrypted in `secrets/prod.yaml`, `POSTGRES_PASSWORD` still in
@@ -13,11 +11,12 @@ more. The check this project already has catches a credential that is
 **declared but empty**; nothing catches one that is **present but unused**, and
 the second is the one nobody rotates.
 
-**Images with no retention.** Every commit produces three tags and nothing ever
-deletes any. That was a chore on the old registry and it is a setting on the new
-one — but a wrong setting here is worse than the pile, because deleting an image
-is the one operation in this project that cannot be undone, and the image an
-automatic rollback needs is one of them.
+This change was proposed with a second half — retention for the images nothing
+ever deletes — and it was **split off at the gate**, deliberately. Every open
+question the pair had lived in that half, all of them about an irreversible
+operation, and the segment holds one change at a time: bundling them would have
+made the cheap and unambiguous half wait for decisions about the dangerous one.
+Retention is its own ticket, with the three answers already argued there.
 
 ## What is being removed, and what only looks removable
 
@@ -42,19 +41,6 @@ like the same string to a careless search:
   the workflow stays — and it should say what is missing rather than failing
   inside `sops`.
 
-## Retention, constrained by a requirement that already exists
-
-`delivery-pipeline` already says the artifact a rollback would need stays
-reachable, and that finding it because the machine happens to still have it does
-not count. So a retention rule is not free to be simple:
-
-- it SHALL NOT delete what production is running, read from production rather
-  than assumed;
-- it SHALL keep at least as many versions as the deploy tool keeps containers,
-  because the rollback target is chosen from those containers;
-- and if production cannot be asked, it deletes nothing — unknown is not
-  permission.
-
 ## What is not included
 
 - No release. Everything here lives in paths excluded from the deployable set,
@@ -67,15 +53,10 @@ not count. So a retention rule is not free to be simple:
 
 ## What has to be decided, and is not obvious
 
-1. **How "the previous version" is known.** The rollback target comes from the
-   machine's container list, and a retention job that runs in CI cannot see it
-   without asking the machine over SSH. Keeping the newest N is a proxy, and it
-   is wrong in exactly the case that matters: production behind main after an
-   unresolved rollback, where the version to keep is not among the newest.
-2. **Whether a scheduled job may delete at all.** `loops.md` gives destructive
-   actions one attempt and then a person. A retention job is destructive by
-   definition and runs unattended. The alternatives are dispatch-only, or
-   scheduled but reporting what it *would* delete until somebody agrees once.
-3. **Whether the mirrored tag is safe.** `183bd32…-production` was copied to the
-   new registry as the rollback target. By push time it is recent; by commit date
-   it is not. A rule written against the wrong one of those deletes it.
+Almost nothing, which is the point of the split. One thing:
+
+1. **The asymmetry the exemptions create.** `adopt-database.yml` stays and keeps
+   reading `DATABASE_URL_TUNNEL`, while the value leaves this instance's secrets.
+   So the workflow is live code that cannot run here any more. Either it says so
+   clearly when the value is absent, or it is a trap for whoever runs it next —
+   and "it fails inside `sops`" is not saying so.
