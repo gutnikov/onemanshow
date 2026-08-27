@@ -50,6 +50,6 @@ runs:
           -v "$PWD:/workdir" \
           -v "$HOME/.ssh:/root/.ssh:ro" \
           -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_STAGING_DOMAIN \
-          -e SHIP_REGISTRY_USER -e SHIP_BREAK_GREETING \
+          -e SHIP_REGISTRY_USER -e SHIP_REGISTRY_SERVER -e SHIP_BREAK_GREETING \
           $forward \
           ghcr.io/basecamp/kamal:v2.12.0 $ARGS

@@ -9,6 +9,13 @@ on:
         description: Repository path WITHOUT the registry host
         required: true
         type: string
+      registry:
+        description: >
+          Registry host, e.g. ghcr.io. Required rather than defaulted so a stub
+          that forgets it is caught by the stub checker instead of resolving to
+          Docker Hub in one code path and the configured host in another.
+        required: true
+        type: string
       registry_user: { required: true, type: string }
       host: { required: true, type: string }
       domain: { required: true, type: string }
@@ -28,6 +35,7 @@ jobs:
       SHIP_HOST: ${{ inputs.host }}
       SHIP_DOMAIN: ${{ inputs.domain }}
       SHIP_REGISTRY_USER: ${{ inputs.registry_user }}
+      SHIP_REGISTRY_SERVER: ${{ inputs.registry }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }

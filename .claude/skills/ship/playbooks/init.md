@@ -40,6 +40,11 @@ failure with no log to read. Raising the ceiling widens every job that declares
 nothing, so the workflows declare their own permissions; the ceiling only makes
 the request possible.
 
+That includes `packages: write`: the build pushes the image with the run's own
+token rather than a stored registry credential. A repository whose default is
+read fails at push time, in somebody else's project, with nothing wrong in the
+code.
+
 **Branch protection on the default branch.** Every merge guard is bypassed by a
 direct push, and pushing directly is easier than not. Without protection the
 guards constrain the automation that was going to obey them anyway, and nothing

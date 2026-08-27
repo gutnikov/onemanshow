@@ -20,6 +20,13 @@ on:
         required: false
         type: string
         default: on-staging.yml
+      registry:
+        description: >
+          Registry host, e.g. ghcr.io. Required rather than defaulted so a stub
+          that forgets it is caught by the stub checker instead of resolving to
+          Docker Hub in one code path and the configured host in another.
+        required: true
+        type: string
       registry_user: { description: Registry account name (not a secret), required: true, type: string }
     secrets:
       # Named to match what a project actually holds, so a stub can use
@@ -32,7 +39,7 @@ jobs:
     # Declared explicitly, not inherited. The repository's ceiling has to allow
     # write for the promote job below to request it at all, and a job that says
     # nothing then receives write it has no use for.
-    permissions: { contents: read }
+    permissions: { contents: read, packages: write }
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
     env:
@@ -82,22 +89,30 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: log in with the write credential
+      # The run's own token, not a stored credential. A reusable workflow mints
+      # the caller's token, so this is the instance repository's, and the job
+      # above declares the write it needs. That is why REGISTRY_TOKEN_RW no
+      # longer exists: it was a credential whose only job was to be rotated.
+      #
+      # The instance's workflow permission ceiling has to allow write for the
+      # declaration to be granted - init.md says so, because a repository
+      # defaulted to read would fail here at push time.
+      - name: log in to the registry
         run: |
-          sops -d --extract '["REGISTRY_TOKEN_RW"]' secrets/ci.yaml \
-            | docker login -u '${{ inputs.registry_user }}' --password-stdin
+          printf '%s' '${{ github.token }}' \
+            | docker login '${{ inputs.registry }}' -u '${{ github.actor }}' --password-stdin
 
       # The machine is x86_64; runners are too, but the platform is pinned so a
       # build from an arm workstation produces the same thing.
       - name: build once
         run: |
           docker buildx build --platform linux/amd64 \
-            -t "${{ inputs.image }}:${SHA}" --push .
+            -t "${{ inputs.registry }}/${{ inputs.image }}:${SHA}" --push .
 
       - name: label for production
         uses: gutnikov/onemanshow/.github/actions/label-image@main
         with:
-          image: ${{ inputs.image }}
+          image: ${{ inputs.registry }}/${{ inputs.image }}
           sha: ${{ env.SHA }}
           service: ${{ inputs.service }}
           destination: production
@@ -105,7 +120,7 @@ jobs:
       - name: label for staging
         uses: gutnikov/onemanshow/.github/actions/label-image@main
         with:
-          image: ${{ inputs.image }}
+          image: ${{ inputs.registry }}/${{ inputs.image }}
           sha: ${{ env.SHA }}
           service: ${{ inputs.staging_service }}
           destination: staging
@@ -113,7 +128,7 @@ jobs:
       - name: the derivatives must be the artifact that was built
         uses: gutnikov/onemanshow/.github/actions/verify-layers@main
         with:
-          image: ${{ inputs.image }}
+          image: ${{ inputs.registry }}/${{ inputs.image }}
           base: ${{ env.SHA }}
           tags: ${{ env.SHA }}-production ${{ env.SHA }}-staging
 

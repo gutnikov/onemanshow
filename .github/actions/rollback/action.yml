@@ -34,7 +34,7 @@ runs:
       run: |
         set -u
         if ! out="$(docker run --rm -v "$PWD:/workdir" -v "$HOME/.ssh:/root/.ssh:ro" \
-                     -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER \
+                     -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER -e SHIP_REGISTRY_SERVER \
                      -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
                      ghcr.io/basecamp/kamal:v2.12.0 app version 2>&1)"; then
           echo "could not read the deployed version:" >&2
@@ -93,7 +93,7 @@ runs:
         PREV: ${{ steps.previous.outputs.prev }}
       run: |
         docker run --rm -v "$PWD:/workdir" -v "$HOME/.ssh:/root/.ssh:ro" \
-          -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER \
+          -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER -e SHIP_REGISTRY_SERVER \
           -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
           ghcr.io/basecamp/kamal:v2.12.0 rollback "$PREV"
 
@@ -108,7 +108,7 @@ runs:
         # This is the same lesson as the guard above it: ask the artifact, not
         # the log of what was intended.
         now="$(docker run --rm -v "$PWD:/workdir" -v "$HOME/.ssh:/root/.ssh:ro" \
-                 -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER \
+                 -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER -e SHIP_REGISTRY_SERVER \
                  -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
                  ghcr.io/basecamp/kamal:v2.12.0 app version 2>&1 \
                | grep -oE '^[0-9a-f]{40}' | tail -1 || true)"

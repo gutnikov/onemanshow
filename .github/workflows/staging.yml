@@ -19,6 +19,13 @@ on:
         required: true
         type: string
       sha: { description: Commit under review, required: true, type: string }
+      registry:
+        description: >
+          Registry host, e.g. ghcr.io. Required rather than defaulted so a stub
+          that forgets it is caught by the stub checker instead of resolving to
+          Docker Hub in one code path and the configured host in another.
+        required: true
+        type: string
       registry_user: { required: true, type: string }
       host: { required: true, type: string }
       domain: { description: Production host name, required: true, type: string }
@@ -47,6 +54,7 @@ jobs:
       SHIP_DOMAIN: ${{ inputs.domain }}
       SHIP_STAGING_DOMAIN: ${{ inputs.staging_domain }}
       SHIP_REGISTRY_USER: ${{ inputs.registry_user }}
+      SHIP_REGISTRY_SERVER: ${{ inputs.registry }}
       SHIP_SSH_LOG_LEVEL: debug
     steps:
       # A 40-hex commit, checked before anything acts on it. Passing an

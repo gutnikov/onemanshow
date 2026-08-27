@@ -14,6 +14,13 @@ on:
         required: true
         type: string
       sha: { required: true, type: string }
+      registry:
+        description: >
+          Registry host, e.g. ghcr.io. Required rather than defaulted so a stub
+          that forgets it is caught by the stub checker instead of resolving to
+          Docker Hub in one code path and the configured host in another.
+        required: true
+        type: string
       registry_user: { required: true, type: string }
       host: { required: true, type: string }
       domain: { description: Production host name, required: true, type: string }
@@ -32,13 +39,14 @@ jobs:
     runs-on: ubuntu-latest
     # Declared, not inherited: the repository's ceiling is write so that the
     # reactive layer can move labels, and a job that says nothing receives it.
-    permissions: { contents: read, issues: write, pull-requests: read }
+    permissions: { contents: read, issues: write, pull-requests: read, packages: read }
     env:
       SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
       SHIP_IMAGE: ${{ inputs.image }}
       SHIP_HOST: ${{ inputs.host }}
       SHIP_DOMAIN: ${{ inputs.domain }}
       SHIP_REGISTRY_USER: ${{ inputs.registry_user }}
+      SHIP_REGISTRY_SERVER: ${{ inputs.registry }}
     steps:
       # Pinned rather than left to default. Triggered from a push to main the
       # default already resolves here, so this changes nothing today - it stops
@@ -100,10 +108,15 @@ jobs:
       - name: the validated artifact must exist
         run: |
           set -eu
-          sops -d --extract '["REGISTRY_TOKEN_RO"]' secrets/prod.yaml \
-            | docker login -u '${{ inputs.registry_user }}' --password-stdin
+          # The run's own token, not the machine's credential. This step only
+          # asks whether a tag exists, and asking is a read - so the stored
+          # credential stops being decrypted onto a runner here. That matters
+          # beyond tidiness: being decrypted onto a runner is how the previous
+          # registry token ended up in a log.
+          printf '%s' '${{ github.token }}' \
+            | docker login '${{ inputs.registry }}' -u '${{ github.actor }}' --password-stdin
           docker buildx imagetools inspect \
-            "${{ inputs.image }}:${{ inputs.sha }}-production" > /dev/null
+            "${{ inputs.registry }}/${{ inputs.image }}:${{ inputs.sha }}-production" > /dev/null
           echo "promoting ${{ inputs.sha }}-production"
 
       # Read before anything changes. After the deploy this answers about the

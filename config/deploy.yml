@@ -40,7 +40,10 @@ proxy:
     path: /alive
 
 registry:
-  server: <%= ENV.fetch("SHIP_REGISTRY_SERVER", "docker.io") %>
+  # No default. A default is how one path resolves to Docker Hub while another
+  # resolves to ghcr: the variable is exported by the workflows, and a forgotten
+  # export must be a loud KeyError at config load rather than a quiet fallback.
+  server: <%= ENV.fetch("SHIP_REGISTRY_SERVER") %>
   username: <%= ENV.fetch("SHIP_REGISTRY_USER") %>
   password:
     - KAMAL_REGISTRY_PASSWORD

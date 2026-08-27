@@ -5,8 +5,14 @@ jobs:
   rollback:
     uses: gutnikov/onemanshow/.github/workflows/rollback.yml@main
     with:
-      image: REPLACE_ME_DOCKERHUB_USER/onemanshow-reference
-      registry_user: REPLACE_ME_DOCKERHUB_USER
+      # Derived, not typed. One package per instance repository: two instances
+      # under one owner would otherwise collide on one package, and the second
+      # one's token cannot push to a package linked to the first.
+      image: ${{ github.repository }}
+      registry: ghcr.io
+      # The account the machine logs in as. On ghcr that is the repository
+      # owner, not a separate registry account.
+      registry_user: ${{ github.repository_owner }}
       host: REPLACE_ME_SERVER_IP
       domain: REPLACE_ME_PRODUCTION_HOSTNAME
       service: onemanshow

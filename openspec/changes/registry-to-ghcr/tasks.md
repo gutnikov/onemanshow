@@ -24,7 +24,11 @@
 
 ## 4. A way back
 
-- [ ] 4.1 Mirror the image production runs to ghcr **before** the switch, at the exact tag, and verify by inspecting it there and confirming the `service` label survived — Kamal validates that label before booting a pulled image
+- [ ] 4.1 Mirror the image production runs to ghcr **before** the switch, at the exact tag, and verify by inspecting it there and confirming the `service` label survived — Kamal validates that label before booting a pulled image.
+
+  **The target, worked out rather than guessed:** `ghcr.io/gutnikov/onemanshow-testbed:183bd3295cd2e391a2a297647742c1fe749e4600-production`. Two things make it that and not something simpler. The image **name** changes too, because it is now derived from the repository rather than typed, so the running version has no tag under the new name either. And the sha is the one production runs now, not the one being released.
+
+  **And it is needed twice at merge, not once.** This change touches `secrets/**`, so merging it fires the reconfigure workflow as well as the release, and the reconfigure redeploys **the version already running** with the new configuration — which composes exactly the reference above. Whichever of the two wins the race, the mirror is what stops one of them failing on a pull. Neither can be avoided: the credential and the configuration have to land in the same commit, because either alone is a mismatch
 - [ ] 4.2 Decide whether `kamal rollback` gains an explicit registry login, given that it has none today and its pull depends on a login left on the host by the last deploy. This decides whether the machine's credential may expire
 - [ ] 4.3 **Keep a written list of the shas whose `-production` tag exists only on ghcr**, and keep it current. Without it, undoing this change cannot be performed: the release refuses to rebuild, so each such image must be mirrored back by hand
 - [ ] 4.4 Neither Docker Hub token is revoked until a release **and** a real rollback have both succeeded on ghcr
