@@ -15,7 +15,9 @@
 
 - [ ] 2.1 Ten places change together: twice in `ship.yml` and eight times across seven stubs. Verify with the check from 1.2, not by reading the diff
 - [ ] 2.2 The certificate is issued for the new names. Verify by asking the served certificate what it is for, not by observing that the page loads — the old certificate would serve the old name perfectly well
-- [ ] 2.3 The uptime monitor watches the new address. The token this project holds could not change it, so either a better path is found or a person does it — and until then liveness is watching an address with no users, which the window check cannot notice
+- [ ] 2.3 **The monitor moves last, and that is a property rather than a preference.** It is the one part of the address that lives outside the repository, so it cannot change in the same commit as the other ten places — and pointing it at the new name before the certificate exists makes it report production dead. Which is exactly what happened while this was being planned: the monitor was switched early, began failing on a TLS handshake, and was paused. Verified at the time that a false alarm costs only a blemish in the uptime record and nothing in the pipeline: the liveness path waits on a dispatch nothing sends, and it has never fired.
+
+  The uptime monitor watches the new address. The token this project holds could not change it, so either a better path is found or a person does it — and until then liveness is watching an address with no users, which the window check cannot notice
 - [ ] 2.4 Verify the stand answers on its new name and its own certificate
 
 ## 3. What the change costs, exercised rather than assumed
