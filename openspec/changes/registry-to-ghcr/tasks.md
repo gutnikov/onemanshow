@@ -1,5 +1,13 @@
 # Tasks
 
+> **Archived with three actions outstanding, by decision at the gate.** The
+> revocations below were not done — "I'll delete everything later" — and they are
+> tracked in the instance as ticket #38 rather than left here, because an
+> outstanding action in an archived change is an action nobody will find. One of
+> them is a credential that leaked into a log and carries a deadline that does not
+> wait on this project's plans. Verified on 2026-08-27 that both tokens still
+> authenticate.
+
 ## 0. The leaked token — revoked, not rotated
 
 Corrected by the person at the gate, and the correction is better than what it
