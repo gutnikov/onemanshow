@@ -2,8 +2,8 @@
 
 ## 0. Before anything, undo the wrong advice
 
-- [ ] 0.1 The monitor points back at the old name until the second change lands. **Not paused** — a paused monitor is not `active`, and the window check then reports the liveness declaration as stale and closes the window unhealthy. Verified today that the monitor is still `active` and merely failing, and that no unresolved uptime issue exists yet
-- [ ] 0.2 If an unresolved uptime issue has appeared by then, resolve it before any release. The window check counts them over 24 hours and calls any non-zero unhealthy, so one left open closes the next window unhealthy for a reason that is already over
+- [x] 0.1 **Done**, and verified: the monitor is active on the old name and back to reporting up. The monitor points back at the old name until the second change lands. **Not paused** — a paused monitor is not `active`, and the window check then reports the liveness declaration as stale and closes the window unhealthy. Verified today that the monitor is still `active` and merely failing, and that no unresolved uptime issue exists yet
+- [x] 0.2 **Checked: none appeared.** If an unresolved uptime issue has appeared by then, resolve it before any release. The window check counts them over 24 hours and calls any non-zero unhealthy, so one left open closes the next window unhealthy for a reason that is already over
 
 ## 1. The proxy serves both names
 
@@ -23,5 +23,5 @@
 
 ## 4. What this unblocks, stated correctly
 
-- [ ] 4.1 This produces a release, so take `registry-to-ghcr` 5.3 afterwards: a real rollback with a genuine previous version to return to. **One** waiting task, not eight — the earlier count was wrong, and the project's own accounting already said six of them wait on a release while two wait on the rollback succeeding
-- [ ] 4.2 And drop `registry-to-ghcr` 0.2 from anything that waits on this. It is a deadline on a leaked credential — a week from 2026-08-26 — and hanging it on our delivery is how a rotation slips
+- [x] 4.1 **Done — and it was the release that finally made it possible.** The rollback completed for the first time, closing `registry-to-ghcr` 5.3. This produces a release, so take `registry-to-ghcr` 5.3 afterwards: a real rollback with a genuine previous version to return to. **One** waiting task, not eight — the earlier count was wrong, and the project's own accounting already said six of them wait on a release while two wait on the rollback succeeding
+- [x] 4.2 **Done.** And drop `registry-to-ghcr` 0.2 from anything that waits on this. It is a deadline on a leaked credential — a week from 2026-08-26 — and hanging it on our delivery is how a rotation slips

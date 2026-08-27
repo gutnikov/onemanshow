@@ -8,7 +8,7 @@ credential in existence for no reason; revoking it keeps none. And the images it
 can read stop mattering once nothing is pushed to them.
 
 - [ ] 0.1 **Revoke both Docker Hub tokens, and delete the Docker Hub repository**, once a release and a real rollback have both succeeded on ghcr. Deleting the repository is what makes the leak inert: the leaked token could read the application's layers, and revoking removes the key while deleting removes the thing the key opened
-- [ ] 0.2 **A deadline, because "after the migration" is not a date.** The leaked token stays valid for as long as this change takes. If the migration is not finished within a week, rotate it after all — the exposure is not conditional on our plans
+- [ ] 0.2 **A deadline, and it does not wait on anything of ours.** Detached deliberately: hanging a leaked credential's rotation on our delivery is how a rotation slips. Verified live on 2026-08-27 — both tokens still authenticate. The leaked token stays valid for as long as this change takes. If the migration is not finished within a week, rotate it after all — the exposure is not conditional on our plans
 
 ## 1. Stop the host being implicit, without a silent fallback
 
