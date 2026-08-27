@@ -6,6 +6,18 @@ inputs:
   args:
     description: Arguments passed to kamal, for example "deploy --skip-push --version x -d staging"
     required: true
+  capture:
+    description: >
+      Return what Kamal printed as an output, for the callers that ask a question
+      rather than give a command - `app version` is a question. Off by default,
+      because capturing means the output arrives at the end instead of streaming,
+      and a deploy that takes minutes should be watchable while it runs.
+    required: false
+    default: 'false'
+outputs:
+  out:
+    description: What Kamal printed, when capture was asked for. Empty otherwise.
+    value: ${{ steps.run.outputs.out }}
 runs:
   using: composite
   steps:
@@ -18,9 +30,11 @@ runs:
     # was resolved as an empty value rather than an error - so error reporting
     # was silently off in production while every file said it was configured.
     # One declaration is enough now.
-    - shell: sh
+    - id: run
+      shell: sh
       env:
         ARGS: ${{ inputs.args }}
+        CAPTURE: ${{ inputs.capture }}
       run: |
         set -eu
         forward=""
@@ -46,10 +60,28 @@ runs:
           exit 1
         fi
 
-        docker run --rm \
-          -v "$PWD:/workdir" \
-          -v "$HOME/.ssh:/root/.ssh:ro" \
-          -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_STAGING_DOMAIN \
-          -e SHIP_REGISTRY_USER -e SHIP_REGISTRY_SERVER -e SHIP_BREAK_GREETING \
-          $forward \
-          ghcr.io/basecamp/kamal:v2.12.0 $ARGS
+        run_kamal() {
+          docker run --rm \
+            -v "$PWD:/workdir" \
+            -v "$HOME/.ssh:/root/.ssh:ro" \
+            -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_STAGING_DOMAIN \
+            -e SHIP_REGISTRY_USER -e SHIP_REGISTRY_SERVER -e SHIP_BREAK_GREETING \
+            $forward \
+            ghcr.io/basecamp/kamal:v2.12.0 $ARGS
+        }
+
+        if [ "${CAPTURE:-false}" != "true" ]; then
+          run_kamal
+        else
+          # Captured, then printed, so the log still holds it. The status is the
+          # command's own: read from the command, not from the end of a pipeline,
+          # which is a mistake this project has made three times.
+          if out="$(run_kamal 2>&1)"; then status=0; else status=$?; fi
+          printf '%s\n' "$out"
+          {
+            echo 'out<<KAMAL_OUTPUT_EOF'
+            printf '%s\n' "$out"
+            echo 'KAMAL_OUTPUT_EOF'
+          } >> "$GITHUB_OUTPUT"
+          exit "$status"
+        fi

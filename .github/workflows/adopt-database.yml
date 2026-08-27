@@ -44,7 +44,20 @@ jobs:
       - name: read both addresses
         run: |
           set -eu
-          old="$(sops -d --extract '["DATABASE_URL_TUNNEL"]' secrets/prod.yaml)"
+          # Both addresses are read the same way, because both can be absent for
+          # the same ordinary reason: an operator running this before setting
+          # them. This one used to fail inside sops with nothing a reader could
+          # act on, eight lines above a neighbour that got it right.
+          #
+          # DATABASE_URL_TUNNEL is deliberately not in the example files. It
+          # exists only while a project still has a database on its machine, and
+          # a name in an example is a name every new project copies - the example
+          # describes the steady state, and this workflow says what to add for
+          # the move.
+          if ! old="$(sops -d --extract '["DATABASE_URL_TUNNEL"]' secrets/prod.yaml 2>/dev/null)"; then
+            echo "::error::set DATABASE_URL_TUNNEL in secrets/prod.yaml to the address of the database still on the machine, reached through the CI tunnel. This workflow moves data off that database; without the address there is nothing to move from. If this project never had one, it has nothing to adopt."
+            exit 1
+          fi
           echo "::add-mask::$old"
           echo "OLD_URL=$old" >> "$GITHUB_ENV"
           # The destination is read from a secret the operator sets before

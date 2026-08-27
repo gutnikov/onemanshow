@@ -28,25 +28,29 @@ runs:
     # a rollback refused with "production is already behind main" when production
     # was exactly where it belonged. Two copies of "what production should equal",
     # disagreeing; the list now comes from the same script the guard uses.
-    - shell: sh
+    # Through the shared action, which derives what to forward from the deploy
+    # tool's own secrets file. The hand-written list this replaced carried two of
+    # the four declared names plus one dead one, and missed the secret whose
+    # absence stopped a rollback booting the application. A shorter hand-written
+    # list would have been the same defect with one word removed.
+    - id: before
+      uses: gutnikov/onemanshow/.github/actions/kamal@main
+      with: { args: "app version", capture: 'true' }
+
+    - id: checked
+      shell: sh
       env:
         ACTION_PATH: ${{ github.action_path }}
+        OUT: ${{ steps.before.outputs.out }}
       run: |
         set -u
-        if ! out="$(docker run --rm -v "$PWD:/workdir" -v "$HOME/.ssh:/root/.ssh:ro" \
-                     -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER -e SHIP_REGISTRY_SERVER \
-                     -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
-                     ghcr.io/basecamp/kamal:v2.12.0 app version 2>&1)"; then
-          echo "could not read the deployed version:" >&2
-          printf '%s\n' "$out" >&2
-          exit 1
-        fi
-        deployed="$(printf '%s\n' "$out" | grep -oE '^[0-9a-f]{40}' | tail -1 || true)"
+        deployed="$(printf '%s\n' "$OUT" | grep -oE '^[0-9a-f]{40}' | tail -1 || true)"
         IGNORE="$("${ACTION_PATH}/../merge-guards/deployable-excludes.py" \
                    "${RELEASE_WORKFLOW_FILE:-.github/workflows/on-main.yml}")"
         # shellcheck disable=SC2086
         expected="$(git log -1 --format=%H origin/main -- . $IGNORE)"
         echo "deployed=$deployed last-deployable=$expected"
+        echo "deployed=$deployed" >> "$GITHUB_OUTPUT" 
         if [ -z "$deployed" ]; then
           echo "refusing: cannot tell what production is running" >&2
           exit 1
@@ -71,6 +75,7 @@ runs:
       env:
         HOST: ${{ env.SHIP_HOST }}
         SERVICE: ${{ inputs.service }}
+        DEPLOYED: ${{ steps.checked.outputs.deployed }}
       run: |
         set -eu
         versions="$(ssh "root@$HOST" \
@@ -82,6 +87,18 @@ runs:
                  | cut -d'|' -f2 | sed "s|^${SERVICE}-web-||")"
         if [ -z "$prev" ]; then
           echo "::error::No previous version exists on the machine, so there is nothing to roll back to."
+          exit 1
+        fi
+        # And refuse when the previous version is the running one. The
+        # reconfigure path deploys the version already running, so the machine
+        # can hold two containers of the same version - and then "roll back to
+        # the second newest" means "boot what is already booted", which succeeds
+        # and achieves nothing while every check downstream reads as a completed
+        # rewind. Nothing to roll back to is a refusal, not a no-op.
+        if [ "${prev%-*}" = "$DEPLOYED" ]; then
+          echo "::error::The previous version on the machine is the one production already runs (${DEPLOYED})." \
+               "That happens after a configuration redeploy, which deploys the running version again." \
+               "There is nothing to roll back to; a person must decide."
           exit 1
         fi
         echo "prev=$prev" >> "$GITHUB_OUTPUT"
@@ -102,10 +119,15 @@ runs:
     - uses: gutnikov/onemanshow/.github/actions/kamal@main
       with: { args: "rollback ${{ steps.previous.outputs.prev }}" }
 
+    - id: after
+      uses: gutnikov/onemanshow/.github/actions/kamal@main
+      with: { args: "app version", capture: 'true' }
+
     - id: rewind
       shell: sh
       env:
         PREV: ${{ steps.previous.outputs.prev }}
+        AFTER: ${{ steps.after.outputs.out }}
       run: |
 
         # Then ask production what it runs, because the command's exit code does
@@ -118,11 +140,7 @@ runs:
         #
         # This is the same lesson as the guard above it: ask the artifact, not
         # the log of what was intended.
-        now="$(docker run --rm -v "$PWD:/workdir" -v "$HOME/.ssh:/root/.ssh:ro" \
-                 -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER -e SHIP_REGISTRY_SERVER \
-                 -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
-                 ghcr.io/basecamp/kamal:v2.12.0 app version 2>&1 \
-               | grep -oE '^[0-9a-f]{40}' | tail -1 || true)"
+        now="$(printf '%s\n' "$AFTER" | grep -oE '^[0-9a-f]{40}' | tail -1 || true)"
         # Compared as commits, not as version strings. The deploy tool's version
         # carries the destination - `<sha>-production` - while the read above
         # extracts the commit alone, so comparing them directly never matched:
