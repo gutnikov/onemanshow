@@ -123,13 +123,20 @@ runs:
                  -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
                  ghcr.io/basecamp/kamal:v2.12.0 app version 2>&1 \
                | grep -oE '^[0-9a-f]{40}' | tail -1 || true)"
-        if [ "$now" = "$PREV" ]; then
+        # Compared as commits, not as version strings. The deploy tool's version
+        # carries the destination - `<sha>-production` - while the read above
+        # extracts the commit alone, so comparing them directly never matched:
+        # the fix written this morning would have reported every successful
+        # rollback as a failure, which is the same defect as the one it replaced
+        # pointing the other way.
+        want="${PREV%-*}"
+        if [ "$now" = "$want" ]; then
           echo 'rewound=yes' >> "$GITHUB_OUTPUT"
           echo "production now runs ${now}, which is what it was asked to return to"
         else
           echo 'rewound=no' >> "$GITHUB_OUTPUT"
           echo "::error::The rollback command succeeded and production runs ${now:-nothing it would say}," \
-               "not ${PREV}. The target container is most likely pruned - kamal retains five - and" \
+               "not ${want}. The target container is most likely pruned - kamal retains five - and" \
                "kamal exits 0 when it cannot find it. Production has NOT been returned; a person must decide."
           exit 1
         fi
