@@ -1,31 +1,27 @@
 # Tasks
 
-## 0. Outside the repository, and first
+## 0. Before anything, undo the wrong advice
 
-- [ ] 0.1 A domain registered, and two `A` records pointing at the machine — production and the stand. **Before** anything is deployed: Let's Encrypt validates over HTTP through the proxy, so a name that does not resolve yet means no certificate, which means the proxy's health check never passes and the deploy fails
-- [ ] 0.2 Verify the records resolve from outside, and that the machine answers on the new name over plain HTTP before TLS is expected to work
+- [ ] 0.1 The monitor points back at the old name until the second change lands. **Not paused** — a paused monitor is not `active`, and the window check then reports the liveness declaration as stale and closes the window unhealthy. Verified today that the monitor is still `active` and merely failing, and that no unresolved uptime issue exists yet
+- [ ] 0.2 If an unresolved uptime issue has appeared by then, resolve it before any release. The window check counts them over 24 hours and calls any non-zero unhealthy, so one left open closes the next window unhealthy for a reason that is already over
 
-## 1. One authority, and a check that reads it
+## 1. The proxy serves both names
 
-- [ ] 1.1 Settle what is authoritative — `ship.yml` or the stubs — knowing that the registry host was settled the other way two changes ago, and that the pipeline reads stubs. Record the answer and why the two roles differ
-- [ ] 1.2 The check fails on disagreement and names both values. **Verify by constructing the failure**: change one stub, watch it be reported, and confirm the message says which value is which
-- [ ] 1.3 Verify it also fails when the stale name still resolves, because that is the case it exists for and the tempting shortcut is to test only against a name that is gone
+- [ ] 1.1 An optional alternate host, defaulting to nothing, so instances that need one name are unaffected. Kamal already comma-splits its proxy host, so this adds a variable and not a concept
+- [ ] 1.2 Settle 1 from the proposal: configuration or a one-off. The template is the product, so a mechanism used once and not shipped leaves the next project without the thing that made this safe
+- [ ] 1.3 Verify the old names still answer. Adding a name looks additive; that is an assumption about someone else's routing table and this change rests on it
 
-## 2. The addresses themselves
+## 2. Certificates, asked rather than assumed
 
-- [ ] 2.1 Ten places change together: twice in `ship.yml` and eight times across seven stubs. Verify with the check from 1.2, not by reading the diff
-- [ ] 2.2 The certificate is issued for the new names. Verify by asking the served certificate what it is for, not by observing that the page loads — the old certificate would serve the old name perfectly well
-- [ ] 2.3 **The monitor moves last, and that is a property rather than a preference.** It is the one part of the address that lives outside the repository, so it cannot change in the same commit as the other ten places — and pointing it at the new name before the certificate exists makes it report production dead. Which is exactly what happened while this was being planned: the monitor was switched early, began failing on a TLS handshake, and was paused. Verified at the time that a false alarm costs only a blemish in the uptime record and nothing in the pipeline: the liveness path waits on a dispatch nothing sends, and it has never fired.
+- [ ] 2.1 Ask the served certificate what it is for, on both new names. `openssl s_client -servername`, not a page that loads — the old certificate serves the old name perfectly and proves nothing about the new one
+- [ ] 2.2 Ask the same of both old names afterwards, because the property this change exists to establish is that they still work
+- [ ] 2.3 The stand's first handshake lands on its migration-safety smoke, which has no retry loop. Verify it passes on the first attempt, and if it does not, that is a defect in this change rather than a flake to re-run
 
-  The uptime monitor watches the new address. The token this project holds could not change it, so either a better path is found or a person does it — and until then liveness is watching an address with no users, which the window check cannot notice
-- [ ] 2.4 Verify the stand answers on its new name and its own certificate
+## 3. The question this change makes matter
 
-## 3. What the change costs, exercised rather than assumed
+- [ ] 3.1 Establish whether `kamal rollback` re-renders the container's environment or starts the container it finds. The rollback's own verification does not sign in, so it cannot see the difference — and after the second change a rollback would return production to a container built with the previous public URL, which the auth library refuses as a cross-origin request. Read the deploy tool's source; the repository's own records point both ways
 
-- [ ] 3.1 Every session is invalidated by the host change. Verify the synthetic account signs in again on the release, which is the one session that matters, and that the seeded fixtures still pass on the stand
-- [ ] 3.2 Decide and record whether the previous names stay configured. Keeping them is a fallback; keeping them is also how the next stale reference stays invisible
+## 4. What this unblocks, stated correctly
 
-## 4. What this unblocks, and only after it has landed
-
-- [ ] 4.1 This produces a deployable release. Once it has, take the rollback rehearsal that has been waiting: a real rollback on the new registry, with a genuine previous version to return to
-- [ ] 4.2 And the bad-credential rehearsal, on its own release rather than this one — a red probe with two candidate causes teaches nothing
+- [ ] 4.1 This produces a release, so take `registry-to-ghcr` 5.3 afterwards: a real rollback with a genuine previous version to return to. **One** waiting task, not eight — the earlier count was wrong, and the project's own accounting already said six of them wait on a release while two wait on the rollback succeeding
+- [ ] 4.2 And drop `registry-to-ghcr` 0.2 from anything that waits on this. It is a deadline on a leaked credential — a week from 2026-08-26 — and hanging it on our delivery is how a rotation slips

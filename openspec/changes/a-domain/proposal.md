@@ -1,74 +1,102 @@
-# A domain of our own
+# A domain of our own — first the proxy learns the name
 
-## Why
+## What the examination changed
 
-The mail role needs one. Verification and password reset both require sending
-mail, and every provider requires a sending domain it can verify with SPF and
-DKIM — `nip.io` cannot be verified by anybody, because it belongs to somebody
-else and resolves any address anyone asks for.
+Four claims in the first draft were false, and one of them inverted the whole
+design. Correcting them turns this from one risky change into two safe ones.
 
-So this is the step under the step. It adds no role, depends on no provider, and
-it is what makes the next two changes possible at all.
+**1. As scoped, it produced no release.** The first draft said the commit touches
+`config/` and therefore deploys. It did not touch `config/` at all: the domain
+arrives through the environment, and the ten places are `ship.yml` and
+`.github/**` — both excluded from the release trigger. The project recorded this
+exact finding two changes ago and I contradicted it. The mechanical justification
+for the whole change was wrong.
 
-It also has a mechanical use. The commit touches `config/`, so it produces a
-**deployable release** — and eight tasks across three changes are waiting for
-one: the rollback that has never completed on the new registry, the rehearsal
-that proves a bad credential stops a release, and the revocation of the old
-registry's tokens that waits on both.
+**2. The failure mode was inverted.** The draft said a stale reference keeps
+working silently because `nip.io` keeps resolving. It is the opposite for most of
+them: `proxy.host` is a single value, so the deploy that adds the new name
+**stops the proxy answering for the old one** — the name resolves and then 404s.
+So stale *read* paths fail loudly, and quickly:
 
-## The real risk, which is not the domain
+- the merge guard that asks production what it runs, refusing every merge;
+- the window check, every ten minutes;
+- `verify secrets`, which reads the domain out of the release stub;
+- the database retirement workflow.
 
-The address lives in **ten places**: twice in `ship.yml` and eight times across
-seven instance stubs, as repeated `domain`, `staging_domain` and
-`production_health_url` values.
+What fails *silently* is the other direction, which the draft never separated:
+the **write** paths. A stale domain in the rollback or reconfigure stubs means
+the emergency path re-registers production on the old address, mid-incident,
+while everything asking about it looks at the new one.
 
-A missed one does not fail. `nip.io` keeps resolving, so a workflow left pointing
-at the old name goes on working — watching, deploying to, or asking about an
-address nobody uses. That is the failure mode this change has to defend against,
-and it is worse than an outage because nothing reports it.
+**3. The TLS chain was invented.** The draft said a missing certificate makes the
+proxy's health check fail and the deploy fail. The proxy's health check polls the
+container over plain HTTP inside the machine and has nothing to do with
+certificates; a deploy succeeds with no certificate and no DNS. The real gap is
+that certificates are issued lazily, on the first handshake for a host the proxy
+has been told to serve — and the first handshake after a deploy lands on the
+stand's migration-safety smoke, which has no retry loop.
 
-The uptime monitor is the clearest case: it will keep polling the old name
-happily while production answers on the new one. Liveness would be watching an
-address with no users.
+**4. Its own release would have died before deploying.** The release asks the
+running production to sign in *before* it changes anything, with `SHIP_URL` set
+from the new domain. With the proxy not yet serving that name, that step fails —
+and it is the very probe two other changes are waiting to rehearse deliberately.
+A red probe with two candidate causes teaches nothing, which is this proposal's
+own sentence about a different change.
 
-So the change carries a check: **the stubs agree with `ship.yml`**. One authority
-for the instance's own address, asserted rather than remembered. Nothing checks
-this today — the existing stub checker compares templates against the reusable
-workflows they call, and never looks at values.
+## So: two changes, and this is the first
 
-## What has to happen outside the repository
+**The proxy learns the new names while keeping the old ones.** Kamal's proxy host
+is already comma-splitting — `proxy_config["hosts"] || proxy_config["host"]&.split(",")`
+— so serving both costs one optional variable and no new concept.
 
-- a domain registered, roughly €10 a year against €120 for the machine;
-- two `A` records pointing at the machine, one for production and one for the
-  stand, because Let's Encrypt validates over HTTP through the proxy and needs
-  the name to resolve **before** the deploy — a name that does not resolve yet
-  means no certificate, which means the proxy's health check never passes and the
-  deploy fails;
-- the uptime monitor's URL changed. The token this project holds could not do it,
-  so it is a person's edit unless a better path is found.
+Nothing else moves. Every health URL, every `SHIP_URL`, every probe still points
+at the old name, which the proxy still serves. Certificates for the new names are
+issued under no time pressure, and can be inspected before anything depends on
+them.
 
-## What breaks, briefly
+That makes this a genuine `config/` change, so it **does** produce a release —
+the one several waiting tasks need — and it does so without asking any part of
+the pipeline to talk to a name that does not answer yet.
 
-- **Every session dies.** Cookies are host-scoped, so changing the address logs
-  everybody out, including the synthetic account. Harmless — it signs in fresh on
-  every release — but it is the kind of thing that should be said before it
-  happens rather than explained afterwards.
-- The old names keep working, which is why a missed reference is silent.
+The second change flips the ten references, adds the check that keeps them in
+step, and moves the monitor last. Its decisions are recorded on its own ticket
+rather than here.
 
-## What has to be decided, and is not obvious
+## What this change is not
 
-1. **Apex or subdomain.** Serving from `app.example.com` leaves the apex free for
-   a marketing page and for mail's own records; serving from the apex is what
-   most people type. This decision reaches the next change, because the mail
-   provider's records attach to the domain that sends.
-2. **Whether the stand keeps living under the same domain.** `staging.example.com`
-   is simplest and puts a stand behind a name that looks production-shaped, which
-   is the point of the stand — but it also means a certificate for it and a name
-   somebody could stumble onto.
-3. **Whether `nip.io` stays configured as a second name** or is dropped
-   entirely. Keeping it is a fallback if DNS breaks; keeping it is also how a
-   stale reference stays invisible.
-4. **What the check compares.** `ship.yml` is the natural authority, but the
-   pipeline reads the stubs, not `ship.yml` — so the check makes a document
-   authoritative over the wiring, which is the opposite of how the registry host
-   was settled two changes ago. That inconsistency should be resolved knowingly.
+- It does not change any address the pipeline uses.
+- It does not touch the monitor. **And the earlier advice to pause it was wrong**:
+  a paused monitor is not `active`, and the window check then reports the liveness
+  declaration as stale and closes the window **unhealthy**. The right holding
+  action is to point it back at the old name until the second change lands.
+- It does not decide apex versus subdomain. That was decided for us: the apex is
+  already serving something else, so production is `app.` and the stand is
+  `staging.`
+
+## How we will know it worked
+
+- The served certificate is **asked what it is for**, on both new names and both
+  old ones. Not "the page loads" — the old certificate would serve the old name
+  perfectly well and prove nothing.
+- The old names keep answering, which is the property that makes the second
+  change safe. Verified by asking them, not by assuming that adding a name is
+  additive.
+- The stand comes up serving both names too, and its migration-safety smoke — the
+  step with no retry — passes on the first handshake rather than on a second
+  attempt.
+
+## What has to be decided
+
+1. **Whether the alternate name is configuration or a one-off.** An optional
+   variable that most instances leave empty is a small permanent concept; doing
+   it by hand once leaves the template without the mechanism that made the move
+   safe. The template is the product, so this is not obvious.
+2. **Whether the stand needs the same treatment at the same time.** It is
+   redeployed per validation, so it gets the new configuration for free — but its
+   first handshake is on the one step that cannot retry.
+3. **Whether `kamal rollback` re-renders the container's environment.** This
+   change makes the answer matter: a rollback to a container built when
+   `SHIP_PUBLIC_URL` was the old name would carry the old base URL, and the
+   library refuses a request whose origin does not match. The evidence in this
+   repository points both ways, and the verification the rollback runs cannot see
+   the difference because it does not sign in.
