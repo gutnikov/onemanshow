@@ -45,7 +45,7 @@ can read stop mattering once nothing is pushed to them.
 - [x] 5.2 **Done.** The release deployed `ghcr.io/gutnikov/onemanshow-testbed:0423ee8…-production`, the literal host appears in the deploy log, and no Docker Hub app image appears anywhere in the run. Production reports the released commit — which it would have reported either way, and that is exactly why the criterion is the log line and not the commit
 - [ ] 5.3 Attempt a rollback deliberately, now that its reporting has been fixed
 - [x] 5.4 **Done, and exercised for real.** `verify secrets` now reads the image production is actually running with the machine's credential, and then attempts a push that must be refused: `the credential reads 0423ee8…-production` / `the credential is refused for writing`. The host and domain come from the release stub, so the check has one source for the instance's configuration rather than a copy of each
-- [ ] 5.5 `manual-path` 1.2: a commit that **does** touch a deployable path still releases. This change touches `config/`, so its release is the first chance to see that direction — and this one stays, because it is a by-product rather than an experiment that needs an unambiguous cause
+- [x] 5.5 **Done, and it was the point of watching this merge.** `merge-change` said `release dispatched for 0423ee8`, and the release ran — the direction that had never been observed. Until now the decision had only ever been seen refusing, and a guard that only refuses is indistinguishable from a broken one
 
 ## 6. Found by hitting it
 

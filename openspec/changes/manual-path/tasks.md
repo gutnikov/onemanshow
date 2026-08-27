@@ -9,7 +9,7 @@ Forced first: this change cannot land without it, because merging it would
 deploy a wiring-only commit and then block the next merge on guard 4.
 
 - [x] 1.1 `merge-change` dispatches the release only when the merged commit touches a deployable path, reading the exclusion list guard 4 already reads rather than keeping a second copy. Verify by merging a wiring-only commit and watching it say it is not releasing, and by confirming production still reports the previous commit **Done.** The predicate was exercised on real commits under a POSIX shell: a commit touching only `secrets/` and `ship.yml` says no release, one touching `e2e/` and `ship/` says release, and a commit git cannot read refuses instead of guessing — three outcomes, not two, because reading a failure to answer as "deployable" is the reading that releases a commit nobody classified
-- [ ] 1.2 Verify the other direction, which is the one that matters: a commit that *does* touch a deployable path still releases. A guard that only ever refuses is indistinguishable from a broken one
+- [x] 1.2 **Done by the registry change's release on 2026-08-27.** It touches `config/`, a deployable path, and the merge said `release dispatched for 0423ee8` followed by a release that deployed. The refusing direction had been seen the day before; this is the other one, and a guard seen only refusing is indistinguishable from a broken one
 
 ## 2. Approval that means this commit — the cheap version, chosen at the gate
 
