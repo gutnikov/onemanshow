@@ -92,22 +92,21 @@ runs:
     # on a login left in the host's docker config by the last deploy. That is a
     # file nobody declares and nothing checks - and the moment it is missing is
     # an incident, which is the worst moment to discover it.
-    - shell: sh
-      run: |
-        docker run --rm -v "$PWD:/workdir" -v "$HOME/.ssh:/root/.ssh:ro" \
-          -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER -e SHIP_REGISTRY_SERVER \
-          -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
-          ghcr.io/basecamp/kamal:v2.12.0 registry login
+    - uses: gutnikov/onemanshow/.github/actions/kamal@main
+      with: { args: "registry login" }
+
+    # Through the shared action, not a hand-rolled docker run. That action
+    # derives what to forward from the deploy tool's own secrets file and refuses
+    # a name that is declared but empty - which is exactly the check this path
+    # lacked when it could not boot the application.
+    - uses: gutnikov/onemanshow/.github/actions/kamal@main
+      with: { args: "rollback ${{ steps.previous.outputs.prev }}" }
 
     - id: rewind
       shell: sh
       env:
         PREV: ${{ steps.previous.outputs.prev }}
       run: |
-        docker run --rm -v "$PWD:/workdir" -v "$HOME/.ssh:/root/.ssh:ro" \
-          -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER -e SHIP_REGISTRY_SERVER \
-          -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
-          ghcr.io/basecamp/kamal:v2.12.0 rollback "$PREV"
 
         # Then ask production what it runs, because the command's exit code does
         # not answer it. `kamal rollback` prints "the app version is not

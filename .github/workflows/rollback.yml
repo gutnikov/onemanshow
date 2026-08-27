@@ -59,9 +59,21 @@ jobs:
             echo "::add-mask::$v"
             echo "$2=$v" >> "$GITHUB_ENV"
           }
-          read_secret REGISTRY_TOKEN_RO KAMAL_REGISTRY_PASSWORD
-          read_secret DATABASE_URL DATABASE_URL
-          read_secret POSTGRES_PASSWORD POSTGRES_PASSWORD
+          # Derived from the file that declares what the deploy tool needs, not
+          # listed here. The hand-written list is why a rollback could not boot
+          # the application at all: BETTER_AUTH_SECRET was added to the app
+          # months of work ago and never to this list, so the container crashed
+          # on start and the rollback died on a health timeout - during the one
+          # procedure that exists for incidents.
+          #
+          # KAMAL_REGISTRY_PASSWORD is the one name that differs between the
+          # deploy tool's file and the secret store, so it is the one mapping.
+          for n in $(grep -oE '^[A-Z_]+' .kamal/secrets); do
+            case "$n" in
+              KAMAL_REGISTRY_PASSWORD) read_secret REGISTRY_TOKEN_RO KAMAL_REGISTRY_PASSWORD ;;
+              *) read_secret "$n" "$n" ;;
+            esac
+          done
       - uses: gutnikov/onemanshow/.github/actions/rollback@main
         with:
           url: "https://${{ inputs.domain }}"
