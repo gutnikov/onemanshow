@@ -87,6 +87,18 @@ runs:
         echo "prev=$prev" >> "$GITHUB_OUTPUT"
         echo "rolling back to $prev"
 
+    # A rollback pulls, and nothing on this path logs in. The deploy path logs in
+    # as a side effect of pushing; a rollback only boots, so it has been relying
+    # on a login left in the host's docker config by the last deploy. That is a
+    # file nobody declares and nothing checks - and the moment it is missing is
+    # an incident, which is the worst moment to discover it.
+    - shell: sh
+      run: |
+        docker run --rm -v "$PWD:/workdir" -v "$HOME/.ssh:/root/.ssh:ro" \
+          -e SHIP_IMAGE -e SHIP_HOST -e SHIP_DOMAIN -e SHIP_REGISTRY_USER -e SHIP_REGISTRY_SERVER \
+          -e KAMAL_REGISTRY_PASSWORD -e DATABASE_URL -e POSTGRES_PASSWORD \
+          ghcr.io/basecamp/kamal:v2.12.0 registry login
+
     - id: rewind
       shell: sh
       env:
