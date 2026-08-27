@@ -9,7 +9,7 @@ remain reachable.
 ### Requirement: The artifact a rollback would need stays reachable
 The image production would be returned to SHALL remain pullable from wherever the deploy tool will look for it, and a change that moves where it looks SHALL bring that image along before the move takes effect.
 
-This is not the same as keeping images for ever. It is one image: the one production is running now, which is the only one an automatic rollback can return to. A retention policy may delete anything older.
+This is not the same as keeping images for ever, and it is not one image either. An automatic rollback returns to the version deployed **before** the running one, chosen from the containers the machine still has — so the artifact that must survive is the predecessor, not what is running now. Both SHALL be kept. A retention policy may delete what is older than the predecessor, and SHALL NOT be expressed in a unit that cannot tell them apart.
 
 The rule exists because the failure it prevents is invisible until the worst moment. The registry a rollback pulls from is composed from configuration, not recorded with the deployment, so changing that configuration silently changes where the previous version is looked for. The deploy tool may find the image already present on the machine and succeed anyway — that SHALL NOT be relied on, because it depends on what a machine happens to still have on disk, which nothing declares and nothing checks.
 

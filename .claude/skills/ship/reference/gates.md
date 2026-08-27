@@ -134,15 +134,28 @@ commits do not release, deliberately, so main's tip can sit ahead of production
 with nothing wrong. What must match is the last commit that touched something
 deployable:
 
+**Do not write the list here.** An earlier version of this file spelled it out,
+told the reader to keep it in step with the release trigger, and was stale within
+weeks — it named `templates` and omitted `scripts`, `secrets` and `.sops.yaml`.
+Then an agent read it to answer "does this change deploy?", answered no, and put
+that in a proposal about a change whose whole risk was that it deploys. The
+guard's code was never wrong; the prose was, and the prose is what gets read.
+
+Ask the trigger:
+
 ```
-git log -1 --format=%H origin/main -- . ':(exclude)openspec' ':(exclude).claude' \
-  ':(exclude).github' ':(exclude)templates' ':(exclude)provision' \
-  ':(exclude)ship.yml' ':(exclude)*.md'
+.github/actions/merge-guards/deployable-excludes.py .github/workflows/on-main.yml
 ```
 
-Keep this list in step with the release trigger's `paths-ignore`, and read it
-from there rather than from memory — they are the same list, and the guard is
-wrong the moment they differ.
+It reads `paths-ignore` from the release trigger and prints the pathspecs. That
+is the same list the guard uses and the same list the merge uses to decide
+whether to ask for a release at all.
+
+**And a path being excluded does not mean the change cannot reach production.** A
+commit touching `secrets/**` reaches it by another door: the reconfigure
+workflow redeploys the version already running, so the configuration around it
+moves without a new artifact. `on-secrets.yml` says so in its own header. "No
+release" and "no deploy" are different sentences.
 
 Comparing against main's tip instead makes this guard refuse every change that
 follows a documentation commit. And when a release *has* gone red on a
