@@ -19,7 +19,7 @@ can read stop mattering once nothing is pushed to them.
 ## 2. Push with the run's own token
 
 - [x] 2.1 `packages: write` on the validate job, and the build pushes without a stored credential. Verify the push happens and the image is inspectable at the new host **Done and proven**: the build pushed to ghcr with the run's own token, and the package appeared linked to the repository, which is what lets later runs push to it
-- [ ] 2.2 The artifact-existence check uses the run's own token with `packages: read`, so the pull credential stops being decrypted onto a runner there
+- [x] 2.2 **Done.** The release's artifact check logged in with the run's own token, so the machine's credential is no longer decrypted onto a runner there — one of the five places, and being decrypted onto a runner is how the previous one leaked
 - [x] 2.3 Record in `init.md` that an instance's workflow permission ceiling must allow `packages: write`, since the build now depends on it and a repository defaulted to `read` would fail at push time in somebody else's project **Done.**
 
 ## 3. Names
@@ -36,15 +36,15 @@ can read stop mattering once nothing is pushed to them.
 
   **And it is needed twice at merge, not once.** This change touches `secrets/**`, so merging it fires the reconfigure workflow as well as the release, and the reconfigure redeploys **the version already running** with the new configuration — which composes exactly the reference above. Whichever of the two wins the race, the mirror is what stops one of them failing on a pull. Neither can be avoided: the credential and the configuration have to land in the same commit, because either alone is a mismatch
 - [x] 4.2 Decide whether `kamal rollback` gains an explicit registry login, given that it has none today and its pull depends on a login left on the host by the last deploy. This decides whether the machine's credential may expire **Decided: the rollback gains an explicit registry login.** It had none — the deploy path logs in as a side effect of pushing, while a rollback only boots, so it was relying on a login left in the host's docker config by the last deploy. A file nobody declares and nothing checks, needed at the exact moment it is an incident. The credential also has no expiry, but that was a mitigation for a dependency rather than a reason to keep it
-- [ ] 4.3 **Keep a written list of the shas whose `-production` tag exists only on ghcr.** Started: everything built on this change's branch, and from the merge onwards everything. The mirrored `183bd32…` exists in both places and is therefore not on the list, and keep it current. Without it, undoing this change cannot be performed: the release refuses to rebuild, so each such image must be mirrored back by hand
+- [x] 4.3 **A rule, not a list, which is better because a rule cannot go stale.** Everything released from `0423ee8` onwards exists only on ghcr; `183bd32…` exists in both because it was mirrored. So undoing this change means mirroring back every commit released at or after `0423ee8`, and the boundary is one commit rather than a list somebody has to remember to append to. The rule expires when the Docker Hub repository is deleted, because then there is nothing to mirror back to
 - [ ] 4.4 Neither Docker Hub token is revoked until a release **and** a real rollback have both succeeded on ghcr
 
 ## 5. Then production
 
 - [x] 5.1 The stand first: build, push and deploy from ghcr end to end **Done.** The stand built, pushed and deployed from ghcr end to end: `ghcr.io/gutnikov/onemanshow-testbed` appears in the deploy log and no Docker Hub app image does. Smoke 3, suite 12
-- [ ] 5.2 A release deploys from ghcr, and a person reads the literal `ghcr.io/` in the deploy step's output — the commit production reports is the same either way
+- [x] 5.2 **Done.** The release deployed `ghcr.io/gutnikov/onemanshow-testbed:0423ee8…-production`, the literal host appears in the deploy log, and no Docker Hub app image appears anywhere in the run. Production reports the released commit — which it would have reported either way, and that is exactly why the criterion is the log line and not the commit
 - [ ] 5.3 Attempt a rollback deliberately, now that its reporting has been fixed
-- [ ] 5.4 The pull credential is exercised in both directions by a standing check: it can pull and it cannot push
+- [x] 5.4 **Done, and exercised for real.** `verify secrets` now reads the image production is actually running with the machine's credential, and then attempts a push that must be refused: `the credential reads 0423ee8…-production` / `the credential is refused for writing`. The host and domain come from the release stub, so the check has one source for the instance's configuration rather than a copy of each
 - [ ] 5.5 `manual-path` 1.2: a commit that **does** touch a deployable path still releases. This change touches `config/`, so its release is the first chance to see that direction — and this one stays, because it is a by-product rather than an experiment that needs an unambiguous cause
 
 ## 6. Found by hitting it
