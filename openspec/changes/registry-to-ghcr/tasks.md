@@ -1,8 +1,14 @@
 # Tasks
 
-## 0. Whether or not the rest happens
+## 0. The leaked token — revoked, not rotated
 
-- [ ] 0.1 Rotate the leaked read-only registry token. It leaked into a CI log before masking existed, it is the cost of *skipping* this change, and it should not wait for a migration to be worth doing
+Corrected by the person at the gate, and the correction is better than what it
+replaced. Rotating a credential for a service we are leaving keeps a working
+credential in existence for no reason; revoking it keeps none. And the images it
+can read stop mattering once nothing is pushed to them.
+
+- [ ] 0.1 **Revoke both Docker Hub tokens, and delete the Docker Hub repository**, once a release and a real rollback have both succeeded on ghcr. Deleting the repository is what makes the leak inert: the leaked token could read the application's layers, and revoking removes the key while deleting removes the thing the key opened
+- [ ] 0.2 **A deadline, because "after the migration" is not a date.** The leaked token stays valid for as long as this change takes. If the migration is not finished within a week, rotate it after all — the exposure is not conditional on our plans
 
 ## 1. Stop the host being implicit, without a silent fallback
 
