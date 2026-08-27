@@ -19,7 +19,7 @@ the stand**, never against production.
 ## 3. Before the deploy
 
 - [x] 3.1 The release asks the **running** production whether the synthetic account can still sign in, and stops without deploying if it cannot. This is the step that makes a later failure attributable, and it runs against the one image in the release already known to work
-- [ ] 3.2 **Deferred to the next release, deliberately.** Doing it now would fail a release for ticket #24 while its observation window is open and would label a released change `blocked:rollback`. The next change is the merge-by-hand fix, and its release is where this belongs. Verify it stops the release: point it at a wrong password once and confirm nothing was deployed and nothing was rolled back
+- [x] 3.2 **Done on 2026-08-27.** The probe stopped a release before anything was migrated, deployed or rolled back — the first time it has refused. Details and the two failed attempts are in `manual-path` 7.1, including the property they uncovered: the credential the probe uses comes from the commit being released, not from main.
 
 ## 4. After the deploy
 
